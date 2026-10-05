@@ -1,0 +1,10 @@
+# This file is machine-generated - editing it directly is not advised
+
+julia_version = "1.13.1"
+manifest_format = "2.1"
+project_hash = "d804f866f051b455653e1060d9dd6add9004293c"
+
+[[deps.PlanetTools]]
+path = "."
+uuid = "9aeb636f-e8a8-4097-a219-e3506295fe79"
+version = "0.1.0"
