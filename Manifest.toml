@@ -2,7 +2,7 @@
 
 julia_version = "1.13.1"
 manifest_format = "2.1"
-project_hash = "367b7de9c5c7207eb9979d675588cbe44d34cbdf"
+project_hash = "3e4d0e5c07bd40022b73b5cdb2a57caf4100d5bf"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1275,7 +1275,7 @@ uuid = "eebad327-c553-4316-9ea0-9fa01ccd7688"
 version = "0.3.3"
 
 [[deps.PlanetTools]]
-deps = ["ColorSchemes", "DataStructures", "Dates", "Makie", "NCDatasets"]
+deps = ["ColorSchemes", "DataStructures", "Dates", "Interpolations", "Makie", "NCDatasets"]
 path = "."
 uuid = "9aeb636f-e8a8-4097-a219-e3506295fe79"
 version = "0.1.0"
