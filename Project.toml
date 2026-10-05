@@ -10,6 +10,7 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [compat]
 ColorSchemes = "3.31.0"
@@ -18,6 +19,7 @@ Dates = "1.11.0"
 Interpolations = "0.16.3"
 Makie = "0.24.15"
 NCDatasets = "0.14.15"
+SpecialFunctions = "2.9.0"
 julia = "1.10.10"
 
 [extras]
