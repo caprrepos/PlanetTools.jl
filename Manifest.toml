@@ -2,7 +2,7 @@
 
 julia_version = "1.13.1"
 manifest_format = "2.1"
-project_hash = "325ce47ae33ed80d532c9a20519e0987613f0147"
+project_hash = "cf4d576dfc64783b08c7bd87991ee7f0012cbd1e"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1103,6 +1103,23 @@ version = "0.14.15"
     [deps.NCDatasets.weakdeps]
     MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 
+[[deps.NaNStatistics]]
+deps = ["PrecompileTools"]
+git-tree-sha1 = "ac9037a673600cf0c6cd58d4c902898b9ad85fb9"
+registries = "General"
+uuid = "b946abbf-3ea7-4610-9019-9858bfdeaf2d"
+version = "0.6.59"
+
+    [deps.NaNStatistics.extensions]
+    NaNStatisticsDimensionalDataExt = "DimensionalData"
+    NaNStatisticsHwlocExt = "Hwloc"
+    NaNStatisticsUnitfulExt = "Unitful"
+
+    [deps.NaNStatistics.weakdeps]
+    DimensionalData = "0703355e-b756-11e9-17c0-8b28908087d0"
+    Hwloc = "0e44f5e4-bd66-52a0-8798-143a42290a1d"
+    Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
 [[deps.NetCDF_jll]]
 deps = ["Artifacts", "Blosc_jll", "Bzip2_jll", "HDF5_jll", "JLLWrappers", "LazyArtifacts", "LibCURL_jll", "Libdl", "MPIABI_jll", "MPICH_jll", "MPIPreferences", "MPItrampoline_jll", "MicrosoftMPI_jll", "OpenMPI_jll", "TOML", "XML2_jll", "Zlib_jll", "Zstd_jll", "libaec_jll", "libzip_jll"]
 git-tree-sha1 = "bbd7ae15594503021b388a1090cca6ea431e0a8f"
@@ -1275,7 +1292,7 @@ uuid = "eebad327-c553-4316-9ea0-9fa01ccd7688"
 version = "0.3.3"
 
 [[deps.PlanetTools]]
-deps = ["ColorSchemes", "DataStructures", "Dates", "Distributions", "Interpolations", "Makie", "NCDatasets", "SpecialFunctions"]
+deps = ["ColorSchemes", "DataStructures", "Dates", "Distributions", "Interpolations", "Makie", "NCDatasets", "NaNStatistics", "SpecialFunctions"]
 path = "."
 uuid = "9aeb636f-e8a8-4097-a219-e3506295fe79"
 version = "0.1.0"
