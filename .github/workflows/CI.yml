@@ -23,10 +23,10 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.12'
           - '1.13'
           - 'pre'
         os:
+          - ubuntu-20.04
           - ubuntu-latest
         arch:
           - x64
@@ -47,7 +47,9 @@ jobs:
           fail_ci_if_error: false
   docs:
     name: Documentation
-    runs-on: ubuntu-latest
+    runs-on:
+      - ubuntu-20.04
+      - ubuntu-latest
     permissions:
       actions: write # needed to allow julia-actions/cache to proactively delete old caches that it has created
       contents: write
