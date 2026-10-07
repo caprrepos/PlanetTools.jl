@@ -26,7 +26,6 @@ jobs:
           - '1.13'
           - 'pre'
         os:
-          - ubuntu-20.04
           - ubuntu-latest
         arch:
           - x64
@@ -48,7 +47,6 @@ jobs:
   docs:
     name: Documentation
     runs-on:
-      - ubuntu-20.04
       - ubuntu-latest
     permissions:
       actions: write # needed to allow julia-actions/cache to proactively delete old caches that it has created
