@@ -7,6 +7,7 @@ using Logging: Logging
 using Makie: Makie
 using PlanetTools
 using PlanetTools.Constructors
+using PlanetTools.DerivePhysicsVariablesModelE
 using Test
 
 @testset "PlanetTools" begin
@@ -14,13 +15,16 @@ using Test
         include("constructors_tests.jl")
     end
 
+    @testset "DerivePhysicsVariablesModelE" begin
+        include("derivephysicsvariablesmodele_tests.jl")
+    end
+
     @testset "Doctests" begin
-        DocMeta.setdocmeta!(
-            PlanetTools,
-            :DocTestSetup,
-            :(using PlanetTools.Constructors, ColorSchemes, Makie);
-            recursive=true,
-        )
+        setup = quote
+            using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariablesModelE
+            using ColorSchemes, Makie
+        end
+        DocMeta.setdocmeta!(PlanetTools, :DocTestSetup, setup; recursive=true)
         doctest(PlanetTools; manual=false)
     end
 end

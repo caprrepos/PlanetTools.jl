@@ -1,452 +1,450 @@
+## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
+##   used from 2026-10-24 to 2026-10-24
+
+"""
+    PlanetTools.DerivePhysicsVariablesModelE
+
+Submodule of PlanetTools that derives new physics variables from existing ones in ModelE /
+ROCKE-3D output: sums, differences, and quotients of variables, and cumulative dust size
+classes. Load it with `using PlanetTools.DerivePhysicsVariablesModelE`.
+
+All functions use the same data layout: `sdata` is an array whose dimension 1 indexes the
+simulations and dimension 2 the variables named in `vnames`; any further dimensions
+(e.g. longitude, latitude, level, time) are carried along unchanged. `attrib`, if given,
+holds one dictionary of NetCDF attributes per variable. The functions do not modify their
+inputs; they return new `vnames`, `sdata`, and `attrib` with the derived variables
+appended along dimension 2. Fill values should be converted to `missing` or `NaN` before.
+
+Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+(jan.p.perlwitz@caprllc.com).
+"""
 module DerivePhysicsVariablesModelE
 
-# Summary: Functions for calculating derived physics variables from other variables
-# Author: Dr Jan P Perlwitz; Climate, Aerosol, and Pollution Research, LLC
-# Contact: jan.p.perlwitz@caprllc.com
-export accumulate_variables,
-    accumulate_dust_masses_modelE,
-    accumulate_dust_optics_modelE,
-    divide_variables,
-    subtract_variables
+export accumulate_variables, subtract_variables, divide_variables
+export accumulate_dust_masses_modele, accumulate_dust_optics_modele
 
+# Dimension of `sdata` that indexes the variables.
+const VDIM = 2
+
+# Dust size bins and the cumulative classes built from them, in accumulation order.
+const MASS_BINS = ("Clay", "Silt1", "Silt2", "Silt3", "Silt4", "Silt5")
+const MASS_CLASSES = ("PM2Dust", "PM4Dust", "PM8Dust", "PM16Dust", "PM32Dust", "PM64Dust")
+const OPTICS_BINS = (
+    "Clay1", "Clay2", "Clay3", "Clay4", "Silt1", "Silt2", "Silt3", "Silt4", "Silt5"
+)
+const OPTICS_CLASSES = (
+    "SumClay1Dust",
+    "SumClay2Dust",
+    "SumClay3Dust",
+    "PM2Dust",
+    "PM4Dust",
+    "PM8Dust",
+    "PM16Dust",
+    "PM32Dust",
+    "PM64Dust",
+)
+
+"""
+    accumulate_variables(vnames, accnames, addname, sdata; kwargs...)
+
+Return `vnames`, `sdata`, and `attrib` with a new variable `addname` appended: the sum of
+all variables selected by `accnames`.
+
+A `String` in `accnames` selects the variable with exactly that name; a `Regex` selects all
+variables whose names match it. A variable selected more than once is summed once.
+
+# Arguments
+- `vnames::AbstractVector{<:AbstractString}`: variable names, one per slice of `sdata`
+    along dimension 2.
+- `accnames::AbstractVector`: `String`s and/or `Regex`es selecting the variables to sum.
+- `addname::AbstractString`: name of the new variable; must not be in `vnames`.
+- `sdata::AbstractArray`: data with simulations along dimension 1 and variables along
+    dimension 2.
+
+# Keywords
+- `attrib=nothing`: vector of attribute dictionaries, one per variable. The new variable
+    gets a copy of the attributes of the first selected variable, with `"long_name"` set
+    to `addlongname`.
+- `addlongname::AbstractString=addname`: `"long_name"` attribute of the new variable.
+
+# Returns
+- `Tuple`: `(vnames, sdata, attrib)`, each with the new variable appended.
+
+# Throws
+- `ArgumentError`: if an entry of `accnames` selects no variable, `addname` already
+    exists, or the sizes of `vnames`, `sdata`, and `attrib` do not agree.
+
+See also [`subtract_variables`](@ref), [`divide_variables`](@ref).
+
+# Examples
+```jldoctest
+julia> sdata = reshape(Float32[1, 2, 3, 10, 20, 30], 1, 3, 2);  # 1 run, 3 vars, 2 times
+
+julia> vnames, sdata, _ = accumulate_variables(
+           ["Clay", "Silt1", "Silt2"], ["Clay", "Silt1"], "PM4Dust", sdata
+       );
+
+julia> vnames[end], sdata[1, end, :]
+("PM4Dust", Float32[3.0, 30.0])
+```
+"""
 function accumulate_variables(
-    vnames::Vector{String},
-    accnames::Vector{String},
-    addname::String,
-    sdata;
+    vnames::AbstractVector{<:AbstractString},
+    accnames::AbstractVector,
+    addname::AbstractString,
+    sdata::AbstractArray;
     attrib=nothing,
-    addlongname="not set",
+    addlongname::AbstractString=addname,
 )
-    # Summary: accumulates data from multiple variables, whose names match the elements of a subset
-    #          of variable names.
-    # Input: vnames - string vector with variable names.
-    #        accnames - string vector with subset of variable names to be accumulated.
-    #        addname - string with new name for accumulated variable.
-    #        sdata - array with data (at least 2 dimensions, one for number of the
-    #		     simulations and the other one for the number of variables).
-    #        attrib - array of dictionaries with attributes.
-    #	     addlongname - new long physics name for accumulated variables for NetCDF.
-    # Output: vnames - variable names with added names after accumulation.
-    #         sdata - simulation data with added data after accumulation.
-    #         attrib - array with dictionaries with added attributes for new variables.
+    _check_inputs(vnames, sdata, attrib, (addname,))
+    isempty(accnames) && throw(ArgumentError("accnames must not be empty"))
 
-    ndimssdata = ndims(sdata)
-    nsizesdata = collect(size(sdata))
-    nvdim = 2
-    for nind in eachindex(nsizesdata)
-        if nind === nvdim
-            nsizesdata[nind] = 1
-        else
-            nsizesdata[nind] = nsizesdata[nind]
-        end
-    end
-
-    accdata = Array{Float32}(undef, Tuple(nsizesdata))
-
-    nvFirst = findfirst(==(1), occursin.(accnames[1], vnames)) # this line is useless, as
-    # nvFirst is set to nothing below?
-
-    findacc = Int[]
-    nvFirst = nothing
+    idxs = Int[]
     for name in accnames
-        cond = occursin.(name, vnames)
-        if any(cond)
-            findacc = vcat(findacc, findall(x -> x == 1, cond))
-            nvFirst = findfirst(==(1), occursin.(name, vnames))
-        end
+        found = _findvars(vnames, name)
+        isempty(found) && throw(ArgumentError("variable $(repr(name)) not found in vnames"))
+        append!(idxs, found)
     end
+    unique!(idxs)
 
-    if nvFirst != nothing
-        accdata = sum(sdata[:, findacc, :, :, :]; dims=nvdim)
+    accdata = sum(selectdim(sdata, VDIM, idxs); dims=VDIM)
+    return _append(vnames, sdata, attrib, [addname], [accdata], first(idxs), [addlongname])
+end
 
-        push!(vnames, addname)
-        sdata = cat(sdata, accdata; dims=nvdim)
+"""
+    subtract_variables(vnames, diffnames, addname, sdata; kwargs...)
 
-        if ! isnothing(attrib)
-            newattributes = deepcopy(attrib[nvFirst])
-            newattributes["long_name"] = addlongname
-            push!(attrib, newattributes)
-        end
-    end
+Return `vnames`, `sdata`, and `attrib` with a new variable `addname` appended:
+`diffnames[1] - diffnames[2] - … - diffnames[end]`.
 
-    return vnames, sdata, attrib
-end # accumulate_variables
+Each entry of `diffnames` must name exactly one variable (exact match).
 
+# Arguments
+- `vnames::AbstractVector{<:AbstractString}`: variable names, one per slice of `sdata`
+    along dimension 2.
+- `diffnames::AbstractVector{<:AbstractString}`: minuend followed by one or more
+    subtrahends.
+- `addname::AbstractString`: name of the new variable; must not be in `vnames`.
+- `sdata::AbstractArray`: data with simulations along dimension 1 and variables along
+    dimension 2.
+
+# Keywords
+- `attrib=nothing`: vector of attribute dictionaries, one per variable. The new variable
+    gets a copy of the minuend's attributes, with `"long_name"` set to `addlongname`.
+- `addlongname::AbstractString=addname`: `"long_name"` attribute of the new variable.
+
+# Returns
+- `Tuple`: `(vnames, sdata, attrib)`, each with the new variable appended.
+
+# Throws
+- `ArgumentError`: if `diffnames` has fewer than two entries or an entry is not found,
+    `addname` already exists, or the sizes of `vnames`, `sdata`, and `attrib` do not agree.
+
+See also [`accumulate_variables`](@ref), [`divide_variables`](@ref).
+
+# Examples
+```jldoctest
+julia> sdata = reshape(Float32[5, 2, 1, 50, 20, 10], 1, 3, 2);
+
+julia> vnames, sdata, _ = subtract_variables(["a", "b", "c"], ["a", "b", "c"], "d", sdata);
+
+julia> sdata[1, end, :]
+2-element Vector{Float32}:
+  2.0
+ 20.0
+```
+"""
 function subtract_variables(
-    vnames::Vector{String},
-    diffnames::Vector{String},
-    addname::String,
-    sdata;
+    vnames::AbstractVector{<:AbstractString},
+    diffnames::AbstractVector{<:AbstractString},
+    addname::AbstractString,
+    sdata::AbstractArray;
     attrib=nothing,
-    addlongname="not set",
+    addlongname::AbstractString=addname,
 )
-    # Summary: subtract subsequent multiple variables, whose names match the elements of a subset
-    #          of variable names, from the first variable in the subset.
-    # Input: vnames - string vector with variable names.
-    #        diffnames - string vector with subset of variable names to be subtracted from
-    #            each other.
-    #        addname - string with new name for variable after subtraction.
-    #        sdata - array with data (at least 2 dimensions, one for number of the
-    #		     simulations and the other one for the number of variables).
-    #        attrib - array of dictionaries with attributes.
-    #	     addlongname - new long physics name of variable after subtraction for NetCDF write.
-    # Output: vnames - variable names with added names after subtraction.
-    #         sdata - simulation data with added data after subtraction.
-    #         attrib - array with dictionaries with added attributes for new variables.
+    _check_inputs(vnames, sdata, attrib, (addname,))
+    idxs = _findoperands(vnames, diffnames, "diffnames")
 
-    ndimssdata = ndims(sdata)
-    nsizesdata = collect(size(sdata))
-    nvdim = 2
-    for nind in eachindex(nsizesdata)
-        if nind === nvdim
-            nsizesdata[nind] = 1
-        else
-            nsizesdata[nind] = nsizesdata[nind]
-        end
+    diffdata = copy(selectdim(sdata, VDIM, idxs[1]:idxs[1]))
+    for i in idxs[2:end]
+        diffdata .-= selectdim(sdata, VDIM, i:i)
     end
+    return _append(vnames, sdata, attrib, [addname], [diffdata], idxs[1], [addlongname])
+end
 
-    diffdata = Array{Float32}(undef, Tuple(nsizesdata))
+"""
+    divide_variables(vnames, quotnames, addname, sdata; kwargs...)
 
-    findMinuend = nothing
-    cond = occursin.(diffnames[1], vnames)
-    if any(cond)
-        findMinuend = findall(==(1), cond)
-    else
-        println("Error: minuend ", diffnames[1], " not found")
-        return vnames, sdata, attrib
-    end
+Return `vnames`, `sdata`, and `attrib` with a new variable `addname` appended:
+`quotnames[1] / quotnames[2] / … / quotnames[end]`.
 
-    findSubtrahend = nothing
-    cond = occursin.(diffnames[2], vnames)
-    if any(cond)
-        findSubtrahend = findall(==(1), cond)
-        diffdata = sdata[:, findMinuend, :, :, :] .- sdata[:, findSubtrahend, :, :, :]
-    else
-        println("Error: first subtrahend ", diffnames[2], " not found")
-        return vnames, sdata, attrib
-    end
+Each entry of `quotnames` must name exactly one variable (exact match). Division by zero
+follows IEEE rules (`Inf` or `NaN`).
 
-    if isless(2, length(diffnames))
-        for name in diffnames[3:end]
-            findSubtrahend = nothing
-            cond = occursin.(name, vnames)
-            if any(cond)
-                findSubtrahend = findall(==(1), cond)
-                diffdata = diffdata .- sdata[:, findSubtrahend, :, :, :]
-            else
-                println("Error: subsequent subtrahend ", name, " not found")
-                return vnames, sdata, attrib
-            end
-        end
-    end
+# Arguments
+- `vnames::AbstractVector{<:AbstractString}`: variable names, one per slice of `sdata`
+    along dimension 2.
+- `quotnames::AbstractVector{<:AbstractString}`: numerator followed by one or more
+    denominators.
+- `addname::AbstractString`: name of the new variable; must not be in `vnames`.
+- `sdata::AbstractArray`: data with simulations along dimension 1 and variables along
+    dimension 2.
 
-    push!(vnames, addname)
-    sdata = cat(sdata, diffdata; dims=nvdim)
+# Keywords
+- `attrib=nothing`: vector of attribute dictionaries, one per variable. The new variable
+    gets a copy of the numerator's attributes with `"long_name"` set to `addlongname`,
+    `"scale_factor"` set to `1.0`, and `"add_offset"` (if present) set to `0.0`. Its
+    `"units"` attribute is copied unchanged and usually needs to be updated.
+- `addlongname::AbstractString=addname`: `"long_name"` attribute of the new variable.
 
-    if ! isnothing(attrib)
-        newattributes = deepcopy(attrib[findMinuend[1]])
-        newattributes["long_name"] = addlongname
-        push!(attrib, newattributes)
-    end
+# Returns
+- `Tuple`: `(vnames, sdata, attrib)`, each with the new variable appended.
 
-    return vnames, sdata, attrib
-end # subtract_variables
+# Throws
+- `ArgumentError`: if `quotnames` has fewer than two entries or an entry is not found,
+    `addname` already exists, or the sizes of `vnames`, `sdata`, and `attrib` do not agree.
 
+See also [`accumulate_variables`](@ref), [`subtract_variables`](@ref).
+
+# Examples
+```jldoctest
+julia> sdata = reshape(Float32[6, 3, 60, 20], 1, 2, 2);
+
+julia> vnames, sdata, _ = divide_variables(["a", "b"], ["a", "b"], "ratio", sdata);
+
+julia> sdata[1, end, :]
+2-element Vector{Float32}:
+ 2.0
+ 3.0
+```
+"""
 function divide_variables(
-    vnames::Vector{String},
-    quotnames::Vector{String},
-    addname::String,
-    sdata;
+    vnames::AbstractVector{<:AbstractString},
+    quotnames::AbstractVector{<:AbstractString},
+    addname::AbstractString,
+    sdata::AbstractArray;
     attrib=nothing,
-    addlongname="not set",
+    addlongname::AbstractString=addname,
 )
-    # Summary: calculate the serial quotient of multiple variables that are in a subset with the
-    #          first one being the numerator
-    # Input: vnames - string vector with variable names.
-    #        quotnames - string vector with subset of variable names from which the serial quotient
-    #            is calculated
-    #        addname - string with new name for variable after division
-    #        sdata - array with data (at least 2 dimensions, one for number of the
-    #		     simulations and the other one for the number of variables).
-    #        attrib - array of dictionaries with attributes.
-    #	     addlongname - new long physics name of variable after division for NetCDF write.
-    # Output: vnames - variable names with added names after division.
-    #         sdata - simulation data with added data after division.
-    #         attrib - array with dictionaries with added attributes for new variables.
+    _check_inputs(vnames, sdata, attrib, (addname,))
+    idxs = _findoperands(vnames, quotnames, "quotnames")
 
-    ndimssdata = ndims(sdata)
-    nsizesdata = collect(size(sdata))
-    nvdim = 2
-    for nind in eachindex(nsizesdata)
-        if nind === nvdim
-            nsizesdata[nind] = 1
-        else
-            nsizesdata[nind] = nsizesdata[nind]
-        end
+    quotdata =
+        selectdim(sdata, VDIM, idxs[1]:idxs[1]) ./ selectdim(sdata, VDIM, idxs[2]:idxs[2])
+    for i in idxs[3:end]
+        quotdata ./= selectdim(sdata, VDIM, i:i)
     end
 
-    quotdata = Array{Float32}(undef, Tuple(nsizesdata))
-
-    findNumerator = nothing
-    cond = occursin.(quotnames[1], vnames)
-    if any(cond)
-        findNumerator = findall(==(1), cond)
-    else
-        println("Error: numerator ", quotnames[1], " not found")
-        return vnames, sdata, attrib
+    vnames, sdata, attrib = _append(
+        vnames, sdata, attrib, [addname], [quotdata], idxs[1], [addlongname]
+    )
+    if attrib !== nothing
+        newattr = attrib[end]
+        newattr["scale_factor"] = 1.0
+        haskey(newattr, "add_offset") && (newattr["add_offset"] = 0.0)
     end
-
-    findDenominator = nothing
-    cond = occursin.(quotnames[2], vnames)
-    if any(cond)
-        findDenominator = findall(==(1), cond)
-        quotdata = sdata[:, findNumerator, :, :, :] ./ sdata[:, findDenominator, :, :, :]
-    else
-        println("Error: first denominator ", quotnames[2], " not found")
-        return vnames, sdata, attrib
-    end
-
-    if isless(2, length(quotnames))
-        for name in quotnames[3:end]
-            findDenominator = nothing
-            cond = occursin.(name, vnames)
-            if any(cond)
-                findDenominator = findall(==(1), cond)
-                quotdata = quotdata ./ sdata[:, findDenominator, :, :, :]
-            else
-                println("Error: subsequent denominator ", name, " not found")
-                return vnames, sdata, attrib
-            end
-        end
-    end
-
-    push!(vnames, addname)
-    sdata = cat(sdata, quotdata; dims=nvdim)
-
-    if ! isnothing(attrib)
-        newattributes = deepcopy(attrib[findNumerator[1]])
-        newattributes["scale_factor"] = 1.0
-        newattributes["long_name"] = addlongname
-        push!(attrib, newattributes)
-    end
-
     return vnames, sdata, attrib
-end # divide_variables
+end
 
 """
-    accumulate_dust_masses_modelE(physvar::String, vnames::Vector{String}, sdata;
-                                 attrib = nothing, addlongname = "not set")
+    accumulate_dust_masses_modele(physvar, vnames, sdata; kwargs...)
 
-Accumulates dust mass variables from discrete ModelE size bins into cumulative
-categories (e.g., SumClay, PM2, PM4, etc.). The function is designed to be rank-agnostic,
-supporting 5-D (spatial-temporal) or 6-D (spatial-temporal-vertical) datasets.
+Return `vnames`, `sdata`, and `attrib` with cumulative dust mass classes appended, built
+from the ModelE size bins `Clay`, `Silt1`, …, `Silt5`. The bin variables are named
+`<bin><physvar>`, e.g. `"Clay_emission"` for `physvar = "_emission"`.
+
+The classes are `PM2Dust` (`Clay`), `PM4Dust` (`+ Silt1`), `PM8Dust` (`+ Silt2`),
+`PM16Dust` (`+ Silt3`), `PM32Dust` (`+ Silt4`), and `PM64Dust` (`+ Silt5`), named
+`<class><physvar>`. Accumulation stops at the first missing bin, so only the classes
+complete up to that bin are created; if `Clay` is missing, the inputs are returned
+unchanged.
 
 # Arguments
-- `physvar::String`: The appendix of the physics variable to search for (e.g., "_emission").
-- `vnames::Vector{String}`: A list of the current variable names present in the `sdata` array.
-  This vector is modified in-place to include the names of the new accumulated variables.
-- `sdata::AbstractArray`: The multi-dimensional simulation data. The 2nd dimension
-  (index 2) must correspond to the variables. Supports any number of dimensions (e.g., 5-D or 6-D).
-- `attrib::Union{Nothing, Vector{OrderedDict{String, Any}}}`: A vector of dictionaries
-  containing NetCDF attributes. If provided, it is updated with attributes for the new variables.
-- `addlongname::String`: A descriptive suffix added to the "long_name" attribute of
-  accumulated variables (e.g., "Optical Depth").
+- `physvar::AbstractString`: suffix of the bin variable names, e.g. `"_emission"`.
+- `vnames::AbstractVector{<:AbstractString}`: variable names, one per slice of `sdata`
+    along dimension 2.
+- `sdata::AbstractArray`: data with simulations along dimension 1 and variables along
+    dimension 2.
+
+# Keywords
+- `attrib=nothing`: vector of attribute dictionaries, one per variable. Each class gets a
+    copy of the `Clay` attributes with `"long_name"` set to `"<class> <addlongname>"`.
+- `addlongname::AbstractString=""`: text appended to the class name in `"long_name"`.
 
 # Returns
-- `vnames`: The updated vector of variable names including the new cumulative categories.
-- `sdata`: The updated data array with the new cumulative variables appended along the 2nd dimension.
-- `attrib`: The updated attribute vector (or `nothing`).
+- `Tuple`: `(vnames, sdata, attrib)`, each with the new classes appended.
 
-# Accumulation Logic
-The function searches for the following bins in sequence:
-`Clay1 -> Clay2 -> Clay3 -> Clay4 -> Silt1 -> Silt2 -> Silt3 -> Silt4 -> Silt5`.
-If a bin in the sequence is missing, the accumulation **stops immediately**, and no
-further cumulative variables are created.
+# Throws
+- `ArgumentError`: if a class variable already exists, or the sizes of `vnames`, `sdata`,
+    and `attrib` do not agree.
 
-# Accumulated Categories Created
-1. **SumClay1Dust**: Clay1
-2. **SumClay2Dust**: Clay1 + Clay2
-3. **SumClay3Dust**: Clay1 + Clay2 + Clay3
-4. **PM2Dust**: SumClay3 + Clay4 (Total Clay)
-5. **PM4Dust**: PM2 + Silt1
-6. **PM8Dust**: PM4 + Silt2
-7. **PM16Dust**: PM8 + Silt3
-8. **PM32Dust**: PM16 + Silt4
-9. **PM64Dust**: PM32 + Silt5
+See also [`accumulate_dust_optics_modele`](@ref).
+
+# Examples
+```jldoctest
+julia> vnames = ["Clay_emission", "Silt1_emission", "Silt2_emission"];
+
+julia> sdata = reshape(Float32[1, 2, 4], 1, 3);
+
+julia> vnames, sdata, _ = accumulate_dust_masses_modele("_emission", vnames, sdata);
+
+julia> vnames[4:end], sdata[1, 4:end]
+(["PM2Dust_emission", "PM4Dust_emission", "PM8Dust_emission"], Float32[1.0, 3.0, 7.0])
+```
 """
-function accumulate_dust_masses_modelE(
-    physvar::String, vnames::Vector{String}, sdata; attrib=nothing, addlongname="not set"
+function accumulate_dust_masses_modele(
+    physvar::AbstractString,
+    vnames::AbstractVector{<:AbstractString},
+    sdata::AbstractArray;
+    attrib=nothing,
+    addlongname::AbstractString="",
 )
-    nvdim = 2 # The dimension index for variables
-
-    # Define the dust bins to look for and the sequence of accumulation names
-    bins = ["Clay", "Silt1", "Silt2", "Silt3", "Silt4", "Silt5"]
-    new_names = ["PM2Dust", "PM4Dust", "PM8Dust", "PM16Dust", "PM32Dust", "PM64Dust"]
-
-    # Setup storage for new data slices to avoid repetitive cat() allocations
-    new_slices = []
-
-    # Initialize running total based on the spatial/temporal dimensions of sdata
-    # This works for any rank (5D, 6D, etc.)
-    spatial_size = collect(size(sdata))
-    spatial_size[nvdim] = 1
-    running_total = zeros(Float32, Tuple(spatial_size))
-
-    nvFirst = 0
-
-    # Process the bins in sequence
-    for i in eachindex(bins)
-        target_vname = bins[i] * physvar
-
-        # Check if the bin exists in vnames
-        idx = findfirst(==(target_vname), vnames)
-
-        if !isnothing(idx)
-            if nvFirst == 0
-                nvFirst = idx
-            end
-
-            # Extract the bin data and add in-place to the running total
-            # selectdim makes this rank-agnostic
-            bin_data = sum(selectdim(sdata, nvdim, idx:idx); dims=nvdim)
-            running_total .+= bin_data
-
-            # Save a snapshot of the accumulation at this stage
-            push!(new_slices, copy(running_total))
-
-            # Metadata Update
-            push!(vnames, new_names[i] * physvar)
-            if !isnothing(attrib)
-                new_attr = deepcopy(attrib[nvFirst])
-                new_attr["long_name"] = new_names[i] * " " * addlongname
-                push!(attrib, new_attr)
-            end
-        else
-            # STOP requirement: If a bin in the sequence is missing,
-            # we stop accumulating further categories immediately.
-            break
-        end
-    end
-
-    # Perform a single concatenation at the end for efficiency
-    if !isempty(new_slices)
-        sdata = cat(sdata, new_slices...; dims=nvdim)
-    end
-
-    return vnames, sdata, attrib
-end # accumulate_dust_masses_modelE
+    srcnames = [bin * physvar for bin in MASS_BINS]
+    newnames = [class * physvar for class in MASS_CLASSES]
+    return _accumulate_sequence(
+        vnames, sdata, attrib, srcnames, newnames, MASS_CLASSES, addlongname
+    )
+end
 
 """
-    accumulate_dust_optics_modelE(physvar::String, vnames::Vector{String}, sdata;
-                                 attrib = nothing, addlongname = "not set")
+    accumulate_dust_optics_modele(physvar, vnames, sdata; kwargs...)
 
-Accumulates dust optical properties from discrete ModelE size bins into cumulative
-categories (e.g., SumClay, PM2, PM4, etc.). The function is designed to be rank-agnostic,
-supporting 5-D (spatial-temporal) or 6-D (spatial-temporal-vertical) datasets.
+Return `vnames`, `sdata`, and `attrib` with cumulative dust optics classes appended, built
+from the ModelE size bins `Clay1`, …, `Clay4`, `Silt1`, …, `Silt5`. The bin variables are
+named `<physvar><bin>`, e.g. `"ExtClay1"` for `physvar = "Ext"`.
+
+The classes are `SumClay1Dust` (`Clay1`), `SumClay2Dust` (`+ Clay2`), `SumClay3Dust`
+(`+ Clay3`), `PM2Dust` (`+ Clay4`), `PM4Dust` (`+ Silt1`), …, `PM64Dust` (`+ Silt5`), named
+`<physvar><class>`. Accumulation stops at the first missing bin, so only the classes
+complete up to that bin are created; if `Clay1` is missing, the inputs are returned
+unchanged.
 
 # Arguments
-- `physvar::String`: The prefix of the physics variable to search for (e.g., "Ext", "Abs").
-- `vnames::Vector{String}`: A list of the current variable names present in the `sdata` array.
-  This vector is modified in-place to include the names of the new accumulated variables.
-- `sdata::AbstractArray`: The multi-dimensional simulation data. The 2nd dimension
-  (index 2) must correspond to the variables. Supports any number of dimensions (e.g., 5-D or 6-D).
-- `attrib::Union{Nothing, Vector{OrderedDict{String, Any}}}`: A vector of dictionaries
-  containing NetCDF attributes. If provided, it is updated with attributes for the new variables.
-- `addlongname::String`: A descriptive suffix added to the "long_name" attribute of
-  accumulated variables (e.g., "Optical Depth").
+- `physvar::AbstractString`: prefix of the bin variable names, e.g. `"Ext"` or `"Abs"`.
+- `vnames::AbstractVector{<:AbstractString}`: variable names, one per slice of `sdata`
+    along dimension 2.
+- `sdata::AbstractArray`: data with simulations along dimension 1 and variables along
+    dimension 2.
+
+# Keywords
+- `attrib=nothing`: vector of attribute dictionaries, one per variable. Each class gets a
+    copy of the `Clay1` attributes with `"long_name"` set to `"<class> <addlongname>"`.
+- `addlongname::AbstractString=""`: text appended to the class name in `"long_name"`.
 
 # Returns
-- `vnames`: The updated vector of variable names including the new cumulative categories.
-- `sdata`: The updated data array with the new cumulative variables appended along the 2nd dimension.
-- `attrib`: The updated attribute vector (or `nothing`).
+- `Tuple`: `(vnames, sdata, attrib)`, each with the new classes appended.
 
-# Accumulation Logic
-The function searches for the following bins in sequence:
-`Clay1 -> Clay2 -> Clay3 -> Clay4 -> Silt1 -> Silt2 -> Silt3 -> Silt4 -> Silt5`.
-If a bin in the sequence is missing, the accumulation **stops immediately**, and no
-further cumulative variables are created.
+# Throws
+- `ArgumentError`: if a class variable already exists, or the sizes of `vnames`, `sdata`,
+    and `attrib` do not agree.
 
-# Accumulated Categories Created
-1. **SumClay1Dust**: Clay1
-2. **SumClay2Dust**: Clay1 + Clay2
-3. **SumClay3Dust**: Clay1 + Clay2 + Clay3
-4. **PM2Dust**: SumClay3 + Clay4 (Total Clay)
-5. **PM4Dust**: PM2 + Silt1
-6. **PM8Dust**: PM4 + Silt2
-7. **PM16Dust**: PM8 + Silt3
-8. **PM32Dust**: PM16 + Silt4
-9. **PM64Dust**: PM32 + Silt5
+See also [`accumulate_dust_masses_modele`](@ref).
+
+# Examples
+```jldoctest
+julia> vnames = ["ExtClay1", "ExtClay2"];
+
+julia> sdata = reshape(Float32[0.1, 0.2], 1, 2);
+
+julia> vnames, sdata, _ = accumulate_dust_optics_modele("Ext", vnames, sdata);
+
+julia> vnames[3:end]
+2-element Vector{String}:
+ "ExtSumClay1Dust"
+ "ExtSumClay2Dust"
+```
 """
-function accumulate_dust_optics_modelE(
-    physvar::String, vnames::Vector{String}, sdata; attrib=nothing, addlongname="not set"
+function accumulate_dust_optics_modele(
+    physvar::AbstractString,
+    vnames::AbstractVector{<:AbstractString},
+    sdata::AbstractArray;
+    attrib=nothing,
+    addlongname::AbstractString="",
 )
-    nvdim = 2 # The dimension index for variables
+    srcnames = [physvar * bin for bin in OPTICS_BINS]
+    newnames = [physvar * class for class in OPTICS_CLASSES]
+    return _accumulate_sequence(
+        vnames, sdata, attrib, srcnames, newnames, OPTICS_CLASSES, addlongname
+    )
+end
 
-    # Define the dust bins to look for and the sequence of accumulation names
-    bins = ["Clay1", "Clay2", "Clay3", "Clay4", "Silt1", "Silt2", "Silt3", "Silt4", "Silt5"]
-    new_names = [
-        "SumClay1Dust",
-        "SumClay2Dust",
-        "SumClay3Dust",
-        "PM2Dust",
-        "PM4Dust",
-        "PM8Dust",
-        "PM16Dust",
-        "PM32Dust",
-        "PM64Dust",
-    ]
+# Indices of the variables selected by an exact name or a pattern.
+_findvars(vnames, name::AbstractString) = findall(==(name), vnames)
+_findvars(vnames, pattern::Regex) = findall(v -> occursin(pattern, v), vnames)
 
-    # Setup storage for new data slices to avoid repetitive cat() allocations
-    new_slices = []
+# Indices of the operands of a subtraction or division, each found by exact name.
+function _findoperands(vnames, names, argname)
+    if length(names) < 2
+        throw(ArgumentError("$argname needs at least two names, got $(length(names))"))
+    end
+    idxs = Int[]
+    for name in names
+        idx = findfirst(==(name), vnames)
+        idx === nothing &&
+            throw(ArgumentError("variable $(repr(name)) not found in vnames"))
+        push!(idxs, idx)
+    end
+    return idxs
+end
 
-    # Initialize running total based on the spatial/temporal dimensions of sdata
-    # This works for any rank (5D, 6D, etc.)
-    spatial_size = collect(size(sdata))
-    spatial_size[nvdim] = 1
-    running_total = zeros(Float32, Tuple(spatial_size))
+# Validate the shared inputs and that none of the new names exists already.
+function _check_inputs(vnames, sdata, attrib, newnames)
+    ndims(sdata) >= VDIM ||
+        throw(ArgumentError("sdata must have at least $VDIM dimensions"))
+    if size(sdata, VDIM) != length(vnames)
+        nv = size(sdata, VDIM)
+        msg = "size(sdata, $VDIM) = $nv but length(vnames) = $(length(vnames))"
+        throw(ArgumentError(msg))
+    end
+    if attrib !== nothing && length(attrib) != length(vnames)
+        msg = "length(attrib) = $(length(attrib)) but length(vnames) = $(length(vnames))"
+        throw(ArgumentError(msg))
+    end
+    for name in newnames
+        name in vnames && throw(ArgumentError("variable $(repr(name)) already exists"))
+    end
+    return nothing
+end
 
-    nvFirst = 0
-
-    # Process the bins in sequence
-    for i in eachindex(bins)
-        target_vname = physvar * bins[i]
-
-        # Check if the bin exists in vnames
-        idx = findfirst(==(target_vname), vnames)
-
-        if !isnothing(idx)
-            if nvFirst == 0
-                nvFirst = idx
-            end
-
-            # Extract the bin data and add in-place to the running total
-            # selectdim makes this rank-agnostic
-            bin_data = sum(selectdim(sdata, nvdim, idx:idx); dims=nvdim)
-            running_total .+= bin_data
-
-            # Save a snapshot of the accumulation at this stage
-            push!(new_slices, copy(running_total))
-
-            # Metadata Update
-            push!(vnames, physvar * new_names[i])
-            if !isnothing(attrib)
-                new_attr = deepcopy(attrib[nvFirst])
-                new_attr["long_name"] = new_names[i] * " " * addlongname
-                push!(attrib, new_attr)
-            end
-        else
-            # STOP requirement: If a bin in the sequence is missing,
-            # we stop accumulating further categories immediately.
-            break
+# Append new variables (names, data slices, attributes copied from variable `srcidx`)
+# without modifying the inputs.
+function _append(vnames, sdata, attrib, newnames, slices, srcidx, longnames)
+    newvnames = String[vnames; newnames]
+    newsdata = cat(sdata, slices...; dims=VDIM)
+    newattrib = attrib === nothing ? nothing : deepcopy(attrib)
+    if newattrib !== nothing
+        for longname in longnames
+            attr = deepcopy(attrib[srcidx])
+            attr["long_name"] = longname
+            push!(newattrib, attr)
         end
     end
+    return newvnames, newsdata, newattrib
+end
 
-    # Perform a single concatenation at the end for efficiency
-    if !isempty(new_slices)
-        sdata = cat(sdata, new_slices...; dims=nvdim)
+# Running sums over `srcnames` in order, one class per bin, stopping at the first missing
+# bin. Classes get the attributes of the first bin.
+function _accumulate_sequence(vnames, sdata, attrib, srcnames, newnames, classes, longtext)
+    _check_inputs(vnames, sdata, attrib, ())
+    slices = AbstractArray[]
+    names = String[]
+    longnames = String[]
+    total = nothing
+    for (src, new, class) in zip(srcnames, newnames, classes)
+        idx = findfirst(==(src), vnames)
+        idx === nothing && break
+        new in vnames && throw(ArgumentError("variable $(repr(new)) already exists"))
+        slice = selectdim(sdata, VDIM, idx:idx)
+        total = total === nothing ? copy(slice) : total .+ slice
+        push!(slices, total)
+        push!(names, new)
+        push!(longnames, isempty(longtext) ? class : class * " " * longtext)
     end
-
-    return vnames, sdata, attrib
-end # function accumulate_dust_optics_modelE
+    if isempty(slices)
+        return String.(vnames), sdata, attrib === nothing ? nothing : deepcopy(attrib)
+    end
+    srcidx = findfirst(==(srcnames[1]), vnames)
+    return _append(vnames, sdata, attrib, names, slices, srcidx, longnames)
+end
 
 end # module DerivePhysicsVariablesModelE
