@@ -2,6 +2,7 @@
 ##   used from 2026-10-24 to 2026-10-24
 
 using ColorSchemes: colorschemes
+using Dates: Date, Month, Year, daysinmonth, month, year
 using Documenter: DocMeta, doctest
 using Logging: Logging
 using Makie: Makie
@@ -10,6 +11,9 @@ using PlanetTools.Constructors
 using PlanetTools.DerivePhysicsVariablesModelE
 using PlanetTools.PlanetAerosolUtils
 using PlanetTools.PlanetDustUtils
+using PlanetTools.PlanetStatistics
+using PlanetTools.PlanetStatistics: PlanetStatistics
+using Random: MersenneTwister
 using SpecialFunctions: erf
 using Test
 
@@ -30,11 +34,16 @@ using Test
         include("planetdustutils_tests.jl")
     end
 
+    @testset "PlanetStatistics" begin
+        include("planetstatistics_tests.jl")
+    end
+
     @testset "Doctests" begin
         setup = quote
             using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariablesModelE
             using PlanetTools.PlanetAerosolUtils, PlanetTools.PlanetDustUtils
-            using ColorSchemes, Makie
+            using PlanetTools.PlanetStatistics
+            using ColorSchemes, Dates, Makie
         end
         DocMeta.setdocmeta!(PlanetTools, :DocTestSetup, setup; recursive=true)
         doctest(PlanetTools; manual=false)
