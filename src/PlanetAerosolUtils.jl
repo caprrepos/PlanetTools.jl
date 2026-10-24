@@ -1,113 +1,177 @@
+## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
+##   used from 2026-10-24 to 2026-10-24
+
+"""
+    PlanetTools.PlanetAerosolUtils
+
+Submodule of PlanetTools with aerosol utilities for planetary atmospheres: the
+size-integrated effective radius of a binned size distribution and log-log interpolation
+of optical lookup tables in wavelength and particle radius. Load it with
+`using PlanetTools.PlanetAerosolUtils`.
+"""
 module PlanetAerosolUtils
+
+using Interpolations: Flat, Gridded, Line, Linear, Throw, extrapolate, interpolate
 
 export calc_size_integrated_effective_radius, interpolate_extinction_coeff_log
 
-using Interpolations
-
 """
-    calc_size_integrated_effective_radius(mass, density, radius)
+    calc_size_integrated_effective_radius(mass, density, radius) -> Real
 
-Calculates the size-integrated effective radius (r_eff) as the cross-sectional
-weighted average across multiple size bins.
+Return the effective radius of an aerosol population given in size bins:
+`sum(V) / sum(V ./ radius)` with bin volumes `V = mass ./ density`.
 
-This calculation is based on the ratio of the total volume of the aerosol
-population to its total projected cross-sectional area.
+For spherical particles this equals the area-weighted mean radius
+`r_eff = ∫ r³ n(r) dr / ∫ r² n(r) dr` [Hansen and Travis, 1974], evaluated with one
+representative radius per bin. That radius should be the bin's own effective radius;
+other choices (e.g. the geometric mean) only approximate it.
+
+Units cancel except for `radius`: the result has the units of `radius`, as long as `mass`
+and `density` each use one unit for all bins.
 
 # Arguments
-- `mass::AbstractVector`: Mass of aerosol in each size bin [kg or g].
-- `density::AbstractVector`: Particle density for each size bin [kg/m^3 or g/cm^3].
-- `radius::AbstractVector`: Representative radius (e.g., geometric mean) of
-  particles in each bin [m or microns].
+- `mass::AbstractVector{<:Real}`: aerosol mass per bin (e.g. column load or mixing ratio).
+- `density`: particle density, one value per bin (`AbstractVector{<:Real}`) or a single
+    `Real` for all bins.
+- `radius::AbstractVector{<:Real}`: representative (effective) radius of each bin, `> 0`.
 
 # Returns
-- A scalar value representing the effective radius of the total population in the
-  same units as the input `radius`.
+- `Real`: the effective radius; `NaN` if the total mass is zero.
 
-# Method
-1. Calculate volume (V) for each bin: V = mass / density.
-2. The effective radius is derived from the ratio of total volume to total
-   area (V/A). For spherical particles, this simplifies to:
-   r_eff = sum(V) / sum(V / r)
+# Throws
+- `ArgumentError`: if the lengths of the vectors differ, they are empty, or a radius or
+    density is not positive.
 
-# Example
-```julia
-m = [0.1, 0.5, 0.2]
-rho = [2000.0, 2000.0, 2000.0]
-r = [0.1, 0.5, 2.0]
-reff = calc_size_integrated_effective_radius(m, rho, r)
+# References
+- Hansen, J. E., and L. D. Travis (1974), Light scattering in planetary atmospheres,
+    *Space Sci. Rev.*, 16(4), 527–610, doi:10.1007/BF00168069.
+
+# Examples
+```jldoctest
+julia> r = [0.1, 1.0];  # µm
+
+julia> mass = [1.0, 1.0];  # Equal mass in both bins.
+
+julia> calc_size_integrated_effective_radius(mass, 2650.0, r) ≈ 2 / (1 / 0.1 + 1 / 1.0)
+true
+```
 """
 function calc_size_integrated_effective_radius(
-    mass::AbstractVector, density::AbstractVector, radius::AbstractVector
+    mass::AbstractVector{<:Real},
+    density::Union{Real,AbstractVector{<:Real}},
+    radius::AbstractVector{<:Real},
 )
-    volume = mass ./ density
-    numerator = sum(volume)
-    denominator = sum(volume ./ radius)
-    sizeIntegratedEffectiveRadius = numerator / denominator
+    n = length(mass)
+    n > 0 || throw(ArgumentError("mass must not be empty"))
+    if length(radius) != n || (density isa AbstractVector && length(density) != n)
+        throw(ArgumentError("mass, density, and radius must have the same length"))
+    end
+    all(>(0), radius) || throw(ArgumentError("all radii must be positive"))
+    all(>(0), density) || throw(ArgumentError("all densities must be positive"))
 
-    return sizeIntegratedEffectiveRadius
-end # calc_size_integrated_effective_radius
+    volume = mass ./ density
+    return sum(volume) / sum(volume ./ radius)
+end
 
 """
-    interpolate_extinction_coeff_log(lambda_bounds, orig_radii, ext_matrix, target_lambda, target_radii; eps_val = 1e-12)
+    interpolate_extinction_coeff_log(
+        lambda_bounds, orig_radii, ext_matrix, target_lambda, target_radii; kwargs...
+    ) -> Matrix
 
-Interpolates mass extinction coefficients across a 2D grid of wavelengths and dust particle sizes using
-log-log mapping. This method is specifically designed for aerosol optical properties, which often
-vary exponentially across several orders of magnitude.
+Interpolate a table of extinction coefficients (or another positive optical quantity) from
+spectral bands and particle radii to new wavelengths and radii, linearly in
+`log(value)` versus `log(wavelength)` and `log(radius)`.
+
+Each band is placed at the geometric mean of its bounds, `sqrt(lower * upper)`. Bands and
+radii may be given in any order. Table values `≤ eps_val` are set to `eps_val` before the
+logarithm is taken, and results `≤ 1.01 * eps_val` are returned as zero. Near such zeros
+the log-space interpolation falls off much faster than a linear one would.
 
 # Arguments
-- `lambda_bounds::Vector{Tuple{Real, Real}}`: A vector of length `k` containing pairs of
-  (lower_bound, upper_bound) for the original spectral bands. The function calculates the
-  geometric mean (midpoint of the log values) for each band to determine its spectral center.
-- `orig_radii::Vector{Real}`: A vector of length `l` containing the distinct dust effective
-  radii (usually in micrometers) corresponding to the original lookup table.
-- `ext_matrix::Matrix{Real}`: A `k × l` matrix where `ext_matrix[i, j]` is the mass extinction
-  coefficient for the `i`-th wavelength band and `j`-th effective radius.
-- `target_lambda::AbstractVector{Real}`: A vector of length `m` containing the target wavelengths
-  to which the coefficients should be interpolated.
-- `target_radii::AbstractVector{Real}`: A vector of length `n` containing the target dust effective
-  radii to which the coefficients should be interpolated.
-- `eps_val::Real`: A small positive floor value used to replace any zeros or negative values in
-  the input matrix before log-transformation. Defaults to `1e-12`.
+- `lambda_bounds::AbstractVector`: `(lower, upper)` wavelength bounds of the `k` bands,
+    `0 < lower ≤ upper`.
+- `orig_radii::AbstractVector{<:Real}`: the `l` particle radii of the table, `> 0`.
+- `ext_matrix::AbstractMatrix{<:Real}`: `k × l` table; `ext_matrix[i, j]` belongs to band
+    `i` and radius `j`.
+- `target_lambda::AbstractVector{<:Real}`: wavelengths to interpolate to, `> 0`, in the
+    units of `lambda_bounds`.
+- `target_radii::AbstractVector{<:Real}`: radii to interpolate to, `> 0`, in the units of
+    `orig_radii`.
+
+# Keywords
+- `eps_val::Real=1e-12`: floor for table values before the logarithm, in table units.
+- `extrapolation::Symbol=:linear`: outside the table, `:linear` continues the log-log
+    lines (power laws), `:flat` keeps the edge values, `:error` throws a `BoundsError`.
 
 # Returns
-- `new_ext_matrix::Matrix{Float64}`: An `m × n` matrix containing the interpolated mass
-  extinction coefficients. The output is transformed back into linear space via the
-  exponential function.
+- `Matrix`: `length(target_lambda) × length(target_radii)` interpolated values.
+
+# Throws
+- `ArgumentError`: if fewer than two bands or radii are given, sizes do not match, bands or
+    radii are repeated, or a wavelength, radius, or bound is not positive.
+
+# Examples
+```jldoctest
+julia> bounds = [(0.2, 0.8), (0.8, 3.2)];  # Band centers 0.4 and 1.6 µm.
+
+julia> table = [4.0 2.0; 1.0 0.5];  # Rows: bands; columns: radii 1 and 2 µm.
+
+julia> interpolate_extinction_coeff_log(bounds, [1.0, 2.0], table, [0.8], [1.0, 2.0])
+1×2 Matrix{Float64}:
+ 2.0  1.0
+```
 """
 function interpolate_extinction_coeff_log(
-    lambda_bounds, orig_radii, ext_matrix, target_lambda, target_radii; eps_val=1e-12
+    lambda_bounds::AbstractVector,
+    orig_radii::AbstractVector{<:Real},
+    ext_matrix::AbstractMatrix{<:Real},
+    target_lambda::AbstractVector{<:Real},
+    target_radii::AbstractVector{<:Real};
+    eps_val::Real=1e-12,
+    extrapolation::Symbol=:linear,
 )
-    # Coordinate Preparation
-    orig_lambda_mid = [sqrt(b[1] * b[2]) for b in lambda_bounds]
-
-    # Transform coordinates to Log-Space
-    log_lambda_orig = log.(orig_lambda_mid)
-    log_r_orig = log.(orig_radii)
-
-    # Transform data to Log-Space with safety floor
-    log_ext_orig = log.(max.(ext_matrix, eps_val))
-
-    # Construct Interpolation Object with explicit Package prefix
-    # Using Interpolations. prefix ensures it works inside your module
-    itp = Interpolations.extrapolate(
-        Interpolations.interpolate(
-            (log_lambda_orig, log_r_orig),
-            log_ext_orig,
-            Interpolations.Gridded(Interpolations.Linear()),
-        ),
-        Interpolations.Line(),
+    nl, nr = length(lambda_bounds), length(orig_radii)
+    if nl < 2 || nr < 2
+        throw(ArgumentError("need at least two bands and two radii, got $nl and $nr"))
+    end
+    if size(ext_matrix) != (nl, nr)
+        msg = "ext_matrix has size $(size(ext_matrix)), expected ($nl, $nr)"
+        throw(ArgumentError(msg))
+    end
+    if !all(b -> 0 < b[1] <= b[2], lambda_bounds)
+        throw(ArgumentError("band bounds must satisfy 0 < lower ≤ upper"))
+    end
+    for (name, x) in (
+        ("orig_radii", orig_radii),
+        ("target_lambda", target_lambda),
+        ("target_radii", target_radii),
     )
+        all(>(0), x) || throw(ArgumentError("all values of $name must be positive"))
+    end
+    eps_val > 0 || throw(ArgumentError("eps_val must be positive"))
+    bc = _boundary_condition(extrapolation)
 
-    # Evaluate Interpolation on the target grid
-    new_ext_matrix = [
-        exp(itp(log(max(tl, eps_val)), log(max(tr, eps_val)))) for
-        tl in target_lambda, tr in target_radii
-    ]
+    # Interpolation knots must be strictly increasing.
+    loglambda = [log(sqrt(b[1] * b[2])) for b in lambda_bounds]
+    logr = log.(orig_radii)
+    il, ir = sortperm(loglambda), sortperm(logr)
+    if !(allunique(loglambda) && allunique(logr))
+        throw(ArgumentError("band centers and radii must be unique"))
+    end
+    logext = log.(max.(ext_matrix[il, ir], eps_val))
 
-    # Post-Processing
-    new_ext_matrix[new_ext_matrix .<= eps_val * 1.01] .= 0.0
+    itp = extrapolate(interpolate((loglambda[il], logr[ir]), logext, Gridded(Linear())), bc)
+    result = [exp(itp(log(tl), log(tr))) for tl in target_lambda, tr in target_radii]
+    result[result .<= 1.01 * eps_val] .= 0
+    return result
+end
 
-    return new_ext_matrix
-end # function interpolate_extinction_coeff_log
+function _boundary_condition(extrapolation::Symbol)
+    extrapolation === :linear && return Line()
+    extrapolation === :flat && return Flat()
+    extrapolation === :error && return Throw()
+    msg = "extrapolation must be :linear, :flat, or :error, got :$extrapolation"
+    return throw(ArgumentError(msg))
+end
 
 end # module PlanetAerosolUtils

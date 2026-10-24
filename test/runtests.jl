@@ -8,6 +8,7 @@ using Makie: Makie
 using PlanetTools
 using PlanetTools.Constructors
 using PlanetTools.DerivePhysicsVariablesModelE
+using PlanetTools.PlanetAerosolUtils
 using Test
 
 @testset "PlanetTools" begin
@@ -19,9 +20,14 @@ using Test
         include("derivephysicsvariablesmodele_tests.jl")
     end
 
+    @testset "PlanetAerosolUtils" begin
+        include("planetaerosolutils_tests.jl")
+    end
+
     @testset "Doctests" begin
         setup = quote
             using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariablesModelE
+            using PlanetTools.PlanetAerosolUtils
             using ColorSchemes, Makie
         end
         DocMeta.setdocmeta!(PlanetTools, :DocTestSetup, setup; recursive=true)

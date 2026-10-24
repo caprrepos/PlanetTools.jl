@@ -1,20 +1,12 @@
 module PlanetTools
 
-include(joinpath(@__DIR__, "Constructors.jl"))
-using ..Constructors
-include(joinpath(@__DIR__, "ReadWritePlanet.jl"))
-using ..ReadWritePlanet
-include(joinpath(@__DIR__, "DerivePhysicsVariablesModelE.jl"))
-using ..DerivePhysicsVariablesModelE
-include(joinpath(@__DIR__, "PlanetAerosolUtils.jl"))
-using ..PlanetAerosolUtils
-include(joinpath(@__DIR__, "PlanetDustUtils.jl"))
-using ..PlanetDustUtils
-include(joinpath(@__DIR__, "PlanetStatistics.jl"))
-using ..PlanetStatistics
-include(joinpath(@__DIR__, "StatisticUtils.jl"))
-using ..StatisticUtils
-include(joinpath(@__DIR__, "PlottingTools.jl"))
-using ..PlottingTools
+include("Constructors.jl")
+#include("ReadWritePlanet.jl")
+include("DerivePhysicsVariablesModelE.jl")
+include("PlanetAerosolUtils.jl")
+#include("PlanetDustUtils.jl")
+#include("PlanetStatistics.jl")
+#include("StatisticUtils.jl")
+#include("PlottingTools.jl")
 
 end # module PlanetTools
