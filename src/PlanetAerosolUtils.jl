@@ -36,9 +36,9 @@ rho = [2000.0, 2000.0, 2000.0]
 r = [0.1, 0.5, 2.0]
 reff = calc_size_integrated_effective_radius(m, rho, r)
 """
-function calc_size_integrated_effective_radius(mass::AbstractVector, density::AbstractVector,
-        radius::AbstractVector)
-
+function calc_size_integrated_effective_radius(
+    mass::AbstractVector, density::AbstractVector, radius::AbstractVector
+)
     volume = mass ./ density
     numerator = sum(volume)
     denominator = sum(volume ./ radius)
@@ -75,35 +75,33 @@ vary exponentially across several orders of magnitude.
   exponential function.
 """
 function interpolate_extinction_coeff_log(
-    lambda_bounds,
-    orig_radii,
-    ext_matrix,
-    target_lambda,
-    target_radii;
-    eps_val = 1e-12
+    lambda_bounds, orig_radii, ext_matrix, target_lambda, target_radii; eps_val=1e-12
 )
     # Coordinate Preparation
     orig_lambda_mid = [sqrt(b[1] * b[2]) for b in lambda_bounds]
 
     # Transform coordinates to Log-Space
     log_lambda_orig = log.(orig_lambda_mid)
-    log_r_orig      = log.(orig_radii)
+    log_r_orig = log.(orig_radii)
 
     # Transform data to Log-Space with safety floor
-    log_ext_orig    = log.(max.(ext_matrix, eps_val))
+    log_ext_orig = log.(max.(ext_matrix, eps_val))
 
     # Construct Interpolation Object with explicit Package prefix
     # Using Interpolations. prefix ensures it works inside your module
     itp = Interpolations.extrapolate(
-        Interpolations.interpolate((log_lambda_orig, log_r_orig), log_ext_orig,
-            Interpolations.Gridded(Interpolations.Linear())),
-        Interpolations.Line()
+        Interpolations.interpolate(
+            (log_lambda_orig, log_r_orig),
+            log_ext_orig,
+            Interpolations.Gridded(Interpolations.Linear()),
+        ),
+        Interpolations.Line(),
     )
 
     # Evaluate Interpolation on the target grid
     new_ext_matrix = [
-        exp(itp(log(max(tl, eps_val)), log(max(tr, eps_val))))
-        for tl in target_lambda, tr in target_radii
+        exp(itp(log(max(tl, eps_val)), log(max(tr, eps_val)))) for
+        tl in target_lambda, tr in target_radii
     ]
 
     # Post-Processing

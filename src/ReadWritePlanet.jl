@@ -38,32 +38,33 @@ end
 
 # --- Main Writing Function ---
 
-function writenetcdf(path;
-        mode = "c",
-        format::Symbol = :netcdf4,
-        data = nothing,
-        vtype = nothing,
-        names = nothing,
-        datadim1 = nothing,
-        dim1attr = nothing,
-        datadim2 = nothing,
-        dim2attr = nothing,
-        datadim3 = nothing,
-        dim3attr = nothing,
-        datadim4 = nothing,
-        dim4attr = nothing,
-        datadim5 = nothing,
-        dim5attr = nothing,
-        datadim6 = nothing,
-        dim6attr = nothing,
-        dimnames = nothing,
-        dataattr = nothing,
-        datevar = nothing,
-        datevarattr = nothing,
-        axypvar = nothing,
-        axypvarattr = nothing,
-        globalattr = nothing
-    )
+function writenetcdf(
+    path;
+    mode="c",
+    format::Symbol=:netcdf4,
+    data=nothing,
+    vtype=nothing,
+    names=nothing,
+    datadim1=nothing,
+    dim1attr=nothing,
+    datadim2=nothing,
+    dim2attr=nothing,
+    datadim3=nothing,
+    dim3attr=nothing,
+    datadim4=nothing,
+    dim4attr=nothing,
+    datadim5=nothing,
+    dim5attr=nothing,
+    datadim6=nothing,
+    dim6attr=nothing,
+    dimnames=nothing,
+    dataattr=nothing,
+    datevar=nothing,
+    datevarattr=nothing,
+    axypvar=nothing,
+    axypvarattr=nothing,
+    globalattr=nothing,
+)
 
     # 1. Determine number of dimensions
     ndatadims = _get_ndatadims(data, names)
@@ -87,7 +88,7 @@ function writenetcdf(path;
             end
         end
 
-        return
+        return nothing
     end
 
     NCDataset(path, mode; format=format, attrib=[]) do ds
@@ -112,8 +113,12 @@ function writenetcdf(path;
 
         # --- B. Standardize Types ---
         if vtype != nothing
-            if axypvar != nothing; axypvar = convert.(vtype, axypvar); end
-            if data != nothing; data = convert.(vtype, data); end
+            if axypvar != nothing
+                axypvar = convert.(vtype, axypvar)
+            end
+            if data != nothing
+                data = convert.(vtype, data)
+            end
         end
 
         # --- C. Write Main Variables (Scalars & Arrays) ---
@@ -127,14 +132,14 @@ function writenetcdf(path;
                         attr = (dataattr != nothing) ? dataattr[n] : []
                         # Robust slicing: pulls the n-th variable slice
                         vdata = (ndims(data) > length(vdims)) ? selectdim(data, 1, n) : data
-                        defVar(ds, names[n], vdata, vdims; attrib = attr)
+                        defVar(ds, names[n], vdata, vdims; attrib=attr)
                     end
                 end
             else
                 # Single variable or scalar (e.g., LS1, Ptop)
                 if !haskey(ds, names)
                     attr = (dataattr != nothing) ? dataattr : []
-                    defVar(ds, names, data, vdims; attrib = attr)
+                    defVar(ds, names, data, vdims; attrib=attr)
                 end
             end
         end
@@ -142,13 +147,14 @@ function writenetcdf(path;
         # --- D. Write Support Variables ---
         if datevar != nothing && !haskey(ds, "Dates")
             attr = (datevarattr === nothing) ? [] : datevarattr
-            defVar(ds, "Dates", string.(datevar), ("time",); attrib = attr)
+            defVar(ds, "Dates", string.(datevar), ("time",); attrib=attr)
         end
 
         if axypvar != nothing && !haskey(ds, "axyp")
-            axyp_dims = ndims(axypvar) == 2 ? ("lon", "lat") : (ndims(axypvar) == 1 ? ("lat",) : ())
+            axyp_dims =
+                ndims(axypvar) == 2 ? ("lon", "lat") : (ndims(axypvar) == 1 ? ("lat",) : ())
             attr = (axypvarattr === nothing) ? [] : axypvarattr
-            defVar(ds, "axyp", axypvar, axyp_dims; attrib = attr)
+            defVar(ds, "axyp", axypvar, axyp_dims; attrib=attr)
         end
 
         # --- E. Attach Global Metadata ---
@@ -188,8 +194,8 @@ function readnetcdf(filepath::AbstractString, var_names::Vector{String})
         global_attributes = OrderedDict(String(k) => v for (k, v) in ds.attrib)
 
         # Initialize dictionaries to hold variable info and data
-        variable_info = OrderedDict{String, Any}()
-        variable_data = OrderedDict{String, Any}()
+        variable_info = OrderedDict{String,Any}()
+        variable_data = OrderedDict{String,Any}()
 
         # 2. Process Pre-Selected Variables
         for var_name in var_names
@@ -198,12 +204,12 @@ function readnetcdf(filepath::AbstractString, var_names::Vector{String})
                 var = ds[var_name]
 
                 # Extract metadata
-                info = Dict{String, Any}(
-                    "name"          => String(name(var)),
-                    "dimensions"    => dimnames(var), # Tuple of dimension names
+                info = Dict{String,Any}(
+                    "name" => String(name(var)),
+                    "dimensions" => dimnames(var), # Tuple of dimension names
                     "dimension_sizes" => size(var),   # Tuple of dimension sizes
-                    "attributes"    => OrderedDict(String(k) => v for (k, v) in var.attrib)
-               )
+                    "attributes" => OrderedDict(String(k) => v for (k, v) in var.attrib),
+                )
 
                 # 3. Read variable data into a Julia Array
                 # The Array operator reads the entire variable data into memory with the same
@@ -220,10 +226,10 @@ function readnetcdf(filepath::AbstractString, var_names::Vector{String})
 
         # Return the results as a NamedTuple
         return (
-            global_attributes = global_attributes,
-            variable_info = variable_info,
-            variable_data = variable_data
-       )
+            global_attributes=global_attributes,
+            variable_info=variable_info,
+            variable_data=variable_data,
+        )
     end
 end # readnetcdf
 

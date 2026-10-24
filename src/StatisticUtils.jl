@@ -24,7 +24,9 @@ Highly optimized for GCM datasets, supporting any rank (e.g., 5-D/6-D) and any f
 Uses the weighted Pearson correlation formula:
 R = Σ [w * (x - μx) * (y - μy)] / sqrt(Σ [w * (x - μx)²] * Σ [w * (y - μy)²])
 """
-function calc_weighted_pattern_corr(vals1::AbstractArray{T}, vals2::AbstractArray{S}, weights::AbstractArray{W}; dims=:) where {T, S, W}
+function calc_weighted_pattern_corr(
+    vals1::AbstractArray{T}, vals2::AbstractArray{S}, weights::AbstractArray{W}; dims=:
+) where {T,S,W}
 
     # Determine promoted result type (e.g., Float32 + Float64 -> Float64)
     RT = promote_type(T, S, W)
@@ -38,19 +40,37 @@ function calc_weighted_pattern_corr(vals1::AbstractArray{T}, vals2::AbstractArra
 
     # Fused Broadcasting for Numerator (Covariance) and Denominator (Variances)
     # This prevents the allocation of large intermediate dx and dy arrays
-    num_comp = broadcast((v1, v2, w, m, ax, ay) -> m ? RT(w) * (RT(v1) - RT(ax)) * (RT(v2) - RT(ay)) : zero(RT),
-                         vals1, vals2, weights, valid_mask, mx, my)
+    num_comp = broadcast(
+        (v1, v2, w, m, ax, ay) ->
+            m ? RT(w) * (RT(v1) - RT(ax)) * (RT(v2) - RT(ay)) : zero(RT),
+        vals1,
+        vals2,
+        weights,
+        valid_mask,
+        mx,
+        my,
+    )
 
-    var_x_comp = broadcast((v1, w, m, ax) -> m ? RT(w) * (RT(v1) - RT(ax))^2 : zero(RT),
-                           vals1, weights, valid_mask, mx)
+    var_x_comp = broadcast(
+        (v1, w, m, ax) -> m ? RT(w) * (RT(v1) - RT(ax))^2 : zero(RT),
+        vals1,
+        weights,
+        valid_mask,
+        mx,
+    )
 
-    var_y_comp = broadcast((v2, w, m, ay) -> m ? RT(w) * (RT(v2) - RT(ay))^2 : zero(RT),
-                           vals2, weights, valid_mask, my)
+    var_y_comp = broadcast(
+        (v2, w, m, ay) -> m ? RT(w) * (RT(v2) - RT(ay))^2 : zero(RT),
+        vals2,
+        weights,
+        valid_mask,
+        my,
+    )
 
     # Reduction Sums
-    numerator = sum(num_comp, dims=dims)
-    var_x     = sum(var_x_comp, dims=dims)
-    var_y     = sum(var_y_comp, dims=dims)
+    numerator = sum(num_comp; dims=dims)
+    var_x = sum(var_x_comp; dims=dims)
+    var_y = sum(var_y_comp; dims=dims)
 
     # Final correlation with zero-variance protection
     denom = @. sqrt(var_x * var_y)
@@ -87,7 +107,9 @@ optimized for planetary climate data (e.g., area-weighted or mass-weighted diagn
 - **Memory Efficiency**: Uses broadcast fusion to calculate weighted sums
   in-place, avoiding large intermediate array allocations.
 """
-function calc_weighted_mean(vals::AbstractArray{T}, weights::AbstractArray{S}; dims=:) where {T, S}
+function calc_weighted_mean(
+    vals::AbstractArray{T}, weights::AbstractArray{S}; dims=:
+) where {T,S}
 
     # Determine promoted result type (e.g., Float32 + Float64 -> Float64)
     RT = promote_type(T, S)
@@ -97,12 +119,14 @@ function calc_weighted_mean(vals::AbstractArray{T}, weights::AbstractArray{S}; d
 
     # Compute weighted values and sum weights using fused broadcasting
     # RT(v) ensures promotion to the higher precision before multiplication
-    weighted_vals = broadcast((v, w, m) -> m ? RT(v) * RT(w) : zero(RT), vals, weights, valid_mask)
+    weighted_vals = broadcast(
+        (v, w, m) -> m ? RT(v) * RT(w) : zero(RT), vals, weights, valid_mask
+    )
     valid_weights = broadcast((w, m) -> m ? RT(w) : zero(RT), weights, valid_mask)
 
     # Perform the reduction
-    sum_wv = sum(weighted_vals, dims=dims)
-    sum_w  = sum(valid_weights, dims=dims)
+    sum_wv = sum(weighted_vals; dims=dims)
+    sum_w = sum(valid_weights; dims=dims)
 
     # Final division with NaN protection using type-appropriate NaN
     res = ifelse.(sum_w .> zero(RT), sum_wv ./ sum_w, RT(NaN))
@@ -132,7 +156,9 @@ temporal variability in GCM outputs where grid cells have unequal areas or masse
 ```math
 \\sigma_w = \\sqrt{ \\frac{V_1 \\sum_{i=1}^N w_i(x_i - \\mu_w)^2}{V_1^2 - V_2} }
 """
-function calc_weighted_std(vals::AbstractArray{T}, weights::AbstractArray{S}; dims=:) where {T, S}
+function calc_weighted_std(
+    vals::AbstractArray{T}, weights::AbstractArray{S}; dims=:
+) where {T,S}
 
     # Determine promoted result type (e.g., Float32 + Float64 -> Float64)
     RT = promote_type(T, S)
@@ -145,16 +171,21 @@ function calc_weighted_std(vals::AbstractArray{T}, weights::AbstractArray{S}; di
 
     # Fused broadcasting for variance components (V1 and V2)
     # This pass calculates the squared differences in-place
-    weighted_sq_diff = broadcast((v, w, m, avg) -> m ? RT(w) * (RT(v) - RT(avg))^2 : zero(RT),
-                                 vals, weights, valid_mask, mx)
+    weighted_sq_diff = broadcast(
+        (v, w, m, avg) -> m ? RT(w) * (RT(v) - RT(avg))^2 : zero(RT),
+        vals,
+        weights,
+        valid_mask,
+        mx,
+    )
 
-    w_sum   = broadcast((w, m) -> m ? RT(w) : zero(RT), weights, valid_mask)
-    w2_sum  = broadcast((w, m) -> m ? RT(w)^2 : zero(RT), weights, valid_mask)
+    w_sum = broadcast((w, m) -> m ? RT(w) : zero(RT), weights, valid_mask)
+    w2_sum = broadcast((w, m) -> m ? RT(w)^2 : zero(RT), weights, valid_mask)
 
     # Reduction
-    sum_wsd = sum(weighted_sq_diff, dims=dims)
-    V1      = sum(w_sum, dims=dims)
-    V2      = sum(w2_sum, dims=dims)
+    sum_wsd = sum(weighted_sq_diff; dims=dims)
+    V1 = sum(w_sum; dims=dims)
+    V2 = sum(w2_sum; dims=dims)
 
     # Reliability weight correction: (V1 * sum_wsd) / (V1^2 - V2)
     denom = @. V1^2 - V2

@@ -3,11 +3,20 @@ module DerivePhysicsVariablesModelE
 # Summary: Functions for calculating derived physics variables from other variables
 # Author: Dr Jan P Perlwitz; Climate, Aerosol, and Pollution Research, LLC
 # Contact: jan.p.perlwitz@caprllc.com
-export accumulate_variables, accumulate_dust_masses_modelE, accumulate_dust_optics_modelE,
-    divide_variables, subtract_variables
+export accumulate_variables,
+    accumulate_dust_masses_modelE,
+    accumulate_dust_optics_modelE,
+    divide_variables,
+    subtract_variables
 
-function accumulate_variables(vnames::Vector{String}, accnames::Vector{String}, addname::String,
-        sdata; attrib = nothing, addlongname = "not set")
+function accumulate_variables(
+    vnames::Vector{String},
+    accnames::Vector{String},
+    addname::String,
+    sdata;
+    attrib=nothing,
+    addlongname="not set",
+)
     # Summary: accumulates data from multiple variables, whose names match the elements of a subset
     #          of variable names.
     # Input: vnames - string vector with variable names.
@@ -35,40 +44,42 @@ function accumulate_variables(vnames::Vector{String}, accnames::Vector{String}, 
     accdata = Array{Float32}(undef, Tuple(nsizesdata))
 
     nvFirst = findfirst(==(1), occursin.(accnames[1], vnames)) # this line is useless, as
-                                                                   # nvFirst is set to nothing below?
+    # nvFirst is set to nothing below?
 
     findacc = Int[]
     nvFirst = nothing
     for name in accnames
-
         cond = occursin.(name, vnames)
         if any(cond)
             findacc = vcat(findacc, findall(x -> x == 1, cond))
             nvFirst = findfirst(==(1), occursin.(name, vnames))
         end
-
     end
 
     if nvFirst != nothing
-
-        accdata = sum(sdata[:, findacc, :, :, :], dims = nvdim)
+        accdata = sum(sdata[:, findacc, :, :, :]; dims=nvdim)
 
         push!(vnames, addname)
-        sdata = cat(sdata, accdata; dims = nvdim)
+        sdata = cat(sdata, accdata; dims=nvdim)
 
         if ! isnothing(attrib)
             newattributes = deepcopy(attrib[nvFirst])
-            newattributes["long_name"] =  addlongname
+            newattributes["long_name"] = addlongname
             push!(attrib, newattributes)
         end
-
     end
 
     return vnames, sdata, attrib
 end # accumulate_variables
 
-function subtract_variables(vnames::Vector{String}, diffnames::Vector{String}, addname::String,
-        sdata; attrib = nothing, addlongname = "not set")
+function subtract_variables(
+    vnames::Vector{String},
+    diffnames::Vector{String},
+    addname::String,
+    sdata;
+    attrib=nothing,
+    addlongname="not set",
+)
     # Summary: subtract subsequent multiple variables, whose names match the elements of a subset
     #          of variable names, from the first variable in the subset.
     # Input: vnames - string vector with variable names.
@@ -116,9 +127,7 @@ function subtract_variables(vnames::Vector{String}, diffnames::Vector{String}, a
     end
 
     if isless(2, length(diffnames))
-
         for name in diffnames[3:end]
-
             findSubtrahend = nothing
             cond = occursin.(name, vnames)
             if any(cond)
@@ -128,25 +137,29 @@ function subtract_variables(vnames::Vector{String}, diffnames::Vector{String}, a
                 println("Error: subsequent subtrahend ", name, " not found")
                 return vnames, sdata, attrib
             end
-
         end
-
     end
 
     push!(vnames, addname)
-    sdata = cat(sdata, diffdata; dims = nvdim)
+    sdata = cat(sdata, diffdata; dims=nvdim)
 
     if ! isnothing(attrib)
         newattributes = deepcopy(attrib[findMinuend[1]])
-        newattributes["long_name"] =  addlongname
+        newattributes["long_name"] = addlongname
         push!(attrib, newattributes)
     end
 
     return vnames, sdata, attrib
 end # subtract_variables
 
-function divide_variables(vnames::Vector{String}, quotnames::Vector{String}, addname::String,
-        sdata; attrib = nothing, addlongname = "not set")
+function divide_variables(
+    vnames::Vector{String},
+    quotnames::Vector{String},
+    addname::String,
+    sdata;
+    attrib=nothing,
+    addlongname="not set",
+)
     # Summary: calculate the serial quotient of multiple variables that are in a subset with the
     #          first one being the numerator
     # Input: vnames - string vector with variable names.
@@ -194,9 +207,7 @@ function divide_variables(vnames::Vector{String}, quotnames::Vector{String}, add
     end
 
     if isless(2, length(quotnames))
-
         for name in quotnames[3:end]
-
             findDenominator = nothing
             cond = occursin.(name, vnames)
             if any(cond)
@@ -206,18 +217,16 @@ function divide_variables(vnames::Vector{String}, quotnames::Vector{String}, add
                 println("Error: subsequent denominator ", name, " not found")
                 return vnames, sdata, attrib
             end
-
         end
-
     end
 
     push!(vnames, addname)
-    sdata = cat(sdata, quotdata; dims = nvdim)
+    sdata = cat(sdata, quotdata; dims=nvdim)
 
     if ! isnothing(attrib)
         newattributes = deepcopy(attrib[findNumerator[1]])
-        newattributes["scale_factor"] = 1.
-        newattributes["long_name"] =  addlongname
+        newattributes["scale_factor"] = 1.0
+        newattributes["long_name"] = addlongname
         push!(attrib, newattributes)
     end
 
@@ -265,9 +274,9 @@ further cumulative variables are created.
 8. **PM32Dust**: PM16 + Silt4
 9. **PM64Dust**: PM32 + Silt5
 """
-function accumulate_dust_masses_modelE(physvar::String, vnames::Vector{String}, sdata;
-                                      attrib = nothing, addlongname = "not set")
-
+function accumulate_dust_masses_modelE(
+    physvar::String, vnames::Vector{String}, sdata; attrib=nothing, addlongname="not set"
+)
     nvdim = 2 # The dimension index for variables
 
     # Define the dust bins to look for and the sequence of accumulation names
@@ -293,11 +302,13 @@ function accumulate_dust_masses_modelE(physvar::String, vnames::Vector{String}, 
         idx = findfirst(==(target_vname), vnames)
 
         if !isnothing(idx)
-            if nvFirst == 0; nvFirst = idx; end
+            if nvFirst == 0
+                nvFirst = idx
+            end
 
             # Extract the bin data and add in-place to the running total
             # selectdim makes this rank-agnostic
-            bin_data = sum(selectdim(sdata, nvdim, idx:idx), dims=nvdim)
+            bin_data = sum(selectdim(sdata, nvdim, idx:idx); dims=nvdim)
             running_total .+= bin_data
 
             # Save a snapshot of the accumulation at this stage
@@ -366,15 +377,24 @@ further cumulative variables are created.
 8. **PM32Dust**: PM16 + Silt4
 9. **PM64Dust**: PM32 + Silt5
 """
-function accumulate_dust_optics_modelE(physvar::String, vnames::Vector{String}, sdata;
-                                      attrib = nothing, addlongname = "not set")
-
+function accumulate_dust_optics_modelE(
+    physvar::String, vnames::Vector{String}, sdata; attrib=nothing, addlongname="not set"
+)
     nvdim = 2 # The dimension index for variables
 
     # Define the dust bins to look for and the sequence of accumulation names
     bins = ["Clay1", "Clay2", "Clay3", "Clay4", "Silt1", "Silt2", "Silt3", "Silt4", "Silt5"]
-    new_names = ["SumClay1Dust", "SumClay2Dust", "SumClay3Dust", "PM2Dust", "PM4Dust",
-        "PM8Dust", "PM16Dust", "PM32Dust", "PM64Dust"]
+    new_names = [
+        "SumClay1Dust",
+        "SumClay2Dust",
+        "SumClay3Dust",
+        "PM2Dust",
+        "PM4Dust",
+        "PM8Dust",
+        "PM16Dust",
+        "PM32Dust",
+        "PM64Dust",
+    ]
 
     # Setup storage for new data slices to avoid repetitive cat() allocations
     new_slices = []
@@ -395,11 +415,13 @@ function accumulate_dust_optics_modelE(physvar::String, vnames::Vector{String}, 
         idx = findfirst(==(target_vname), vnames)
 
         if !isnothing(idx)
-            if nvFirst == 0; nvFirst = idx; end
+            if nvFirst == 0
+                nvFirst = idx
+            end
 
             # Extract the bin data and add in-place to the running total
             # selectdim makes this rank-agnostic
-            bin_data = sum(selectdim(sdata, nvdim, idx:idx), dims=nvdim)
+            bin_data = sum(selectdim(sdata, nvdim, idx:idx); dims=nvdim)
             running_total .+= bin_data
 
             # Save a snapshot of the accumulation at this stage

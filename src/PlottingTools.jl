@@ -21,8 +21,7 @@ julia> _finite_extrema([NaN 1.0; Inf -2.0])
 ```
 """
 function _finite_extrema(z)
-    any(isfinite, z) ||
-        throw(ArgumentError("finite_contour!: z contains no finite values"))
+    any(isfinite, z) || throw(ArgumentError("finite_contour!: z contains no finite values"))
     lo, hi = extrema(Iterators.filter(isfinite, z))
     return Float64(lo), Float64(hi)
 end
@@ -50,9 +49,12 @@ julia> _resolve_levels(3, [0.0 4.0; 1.0 2.0], nothing)
 """
 function _resolve_levels(n::Integer, z, zrange)
     n ≥ 1 || throw(ArgumentError("finite_contour!: number of levels must be ≥ 1, got $n"))
-    lo, hi = zrange === nothing ? _finite_extrema(z) : (Float64(zrange[1]), Float64(zrange[2]))
-    hi > lo || throw(ArgumentError("finite_contour!: degenerate range ($lo, $hi) for automatic levels"))
-    return collect(range(lo, hi; length = n + 2))[2:end-1]
+    lo, hi =
+        zrange === nothing ? _finite_extrema(z) : (Float64(zrange[1]), Float64(zrange[2]))
+    hi > lo || throw(
+        ArgumentError("finite_contour!: degenerate range ($lo, $hi) for automatic levels"),
+    )
+    return collect(range(lo, hi; length=n + 2))[2:(end - 1)]
 end
 _resolve_levels(levels::AbstractVector{<:Real}, z, zrange) = sort!(unique(Float64.(levels)))
 _resolve_levels(level::AbstractFloat, z, zrange) = [Float64(level)]
@@ -80,10 +82,14 @@ function _level_colors(color, colormap, colorrange, levs)
     if color === nothing
         cg = cgrad(colormap)
         lo, hi = colorrange === nothing ? extrema(levs) : Float64.(colorrange)
-        return [hi > lo ? get(cg, clamp((v - lo) / (hi - lo), 0, 1)) : get(cg, 0.5) for v in levs]
+        return [
+            hi > lo ? get(cg, clamp((v - lo) / (hi - lo), 0, 1)) : get(cg, 0.5) for
+            v in levs
+        ]
     elseif color isa AbstractVector
-        length(color) == nl || throw(ArgumentError(
-            "finite_contour!: got $(length(color)) colors for $nl levels"))
+        length(color) == nl || throw(
+            ArgumentError("finite_contour!: got $(length(color)) colors for $nl levels")
+        )
         return collect(color)
     else
         return fill(color, nl)
@@ -199,19 +205,32 @@ Source type: all entries are primary package documentation. None of them has a D
 
 [3] MakieOrg. Makie documentation: lines (NaN separates segments) and Colors / cgrad. No DOI. https://docs.makie.org/stable/reference/plots/lines ; https://docs.makie.org/stable/explanations/colors
 """
-function finite_contour!(ax, x::AbstractVector, y::AbstractVector, z::AbstractMatrix{<:Real};
-                         levels = 5, color = nothing, colormap = :viridis,
-                         colorrange = nothing, zrange = nothing,
-                         minpoints::Int = 2, kwargs...)
-    size(z) == (length(x), length(y)) ||
-        throw(DimensionMismatch("size(z) = $(size(z)) but (length(x), length(y)) = " *
-                                "($(length(x)), $(length(y)))"))
-    levs   = _resolve_levels(levels, z, zrange)
+function finite_contour!(
+    ax,
+    x::AbstractVector,
+    y::AbstractVector,
+    z::AbstractMatrix{<:Real};
+    levels=5,
+    color=nothing,
+    colormap=:viridis,
+    colorrange=nothing,
+    zrange=nothing,
+    minpoints::Int=2,
+    kwargs...,
+)
+    size(z) == (length(x), length(y)) || throw(
+        DimensionMismatch(
+            "size(z) = $(size(z)) but (length(x), length(y)) = " *
+            "($(length(x)), $(length(y)))",
+        ),
+    )
+    levs = _resolve_levels(levels, z, zrange)
     colors = _level_colors(color, colormap, colorrange, levs)
-    nseg   = zeros(Int, length(levs))
+    nseg = zeros(Int, length(levs))
 
     for (il, lev) in pairs(levs)
-        xs_all = Float32[]; ys_all = Float32[]
+        xs_all = Float32[]
+        ys_all = Float32[]
         for ln in Contour.lines(Contour.contour(x, y, z, lev))
             xs, ys = Contour.coordinates(ln)
             good = isfinite.(xs) .& isfinite.(ys)
@@ -220,12 +239,14 @@ function finite_contour!(ax, x::AbstractVector, y::AbstractVector, z::AbstractMa
             append!(ys_all, ifelse.(good, Float32.(ys), NaN32), (NaN32,))
             nseg[il] += 1
         end
-        nseg[il] > 0 && lines!(ax, xs_all, ys_all; color = colors[il], kwargs...)
+        nseg[il] > 0 && lines!(ax, xs_all, ys_all; color=colors[il], kwargs...)
     end
-    return (; levels = levs, nsegments = nseg)
+    return (; levels=levs, nsegments=nseg)
 end
 
-finite_contour!(ax, x::AbstractVector, y::AbstractVector, z::AbstractMatrix{<:Real},
-                levels; kwargs...) =
-    finite_contour!(ax, x, y, z; levels = levels, kwargs...)
+function finite_contour!(
+    ax, x::AbstractVector, y::AbstractVector, z::AbstractMatrix{<:Real}, levels; kwargs...
+)
+    return finite_contour!(ax, x, y, z; levels=levels, kwargs...)
+end
 end # module Plotting Tools

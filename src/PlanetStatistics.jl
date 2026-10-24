@@ -1,14 +1,15 @@
 module PlanetStatistics
 
-export calc_planet_means!, calc_annual_mean_ts!, calc_seasonal_mean_ts!, calc_multiyear_stats!
-export calc_anomalies!, calc_linear_trends!, calc_linear_trends_sig!, generate_significance_mask!
+export calc_planet_means!,
+    calc_annual_mean_ts!, calc_seasonal_mean_ts!, calc_multiyear_stats!
+export calc_anomalies!,
+    calc_linear_trends!, calc_linear_trends_sig!, generate_significance_mask!
 
 using Base.Threads
 using Dates
 using Distributions
 using NaNStatistics
 using Statistics
-
 
 # --- Private Helper Functions ---
 
@@ -59,8 +60,17 @@ simulations, while tracking the fraction of valid data points.
 # Returns
 - `nothing`
 """
-function calc_planet_means!(data, zm_out, gm_out, weights_zm, weights_gm, axyp, t_ranges;
-                            run_names=nothing, threshold=100.0)
+function calc_planet_means!(
+    data,
+    zm_out,
+    gm_out,
+    weights_zm,
+    weights_gm,
+    axyp,
+    t_ranges;
+    run_names=nothing,
+    threshold=100.0,
+)
     nd = ndims(data)
     LON_DIM = 3
     LAT_DIM = 4
@@ -97,10 +107,12 @@ function calc_planet_means!(data, zm_out, gm_out, weights_zm, weights_gm, axyp, 
         zm_raw = nanmean(data_view, dims=LON_DIM)
 
         # Apply threshold to data and weights
-        zm_out[ns:ns, colons..., t_range] .= ifelse.(presence_zm .< threshold,
-                                                    Float32(NaN), zm_raw)
-        weights_zm[ns:ns, colons..., t_range] .= ifelse.(presence_zm .< threshold,
-                                                        0.0f0, fraction_zm)
+        zm_out[ns:ns, colons..., t_range] .= ifelse.(
+            presence_zm .< threshold, Float32(NaN), zm_raw
+        )
+        weights_zm[ns:ns, colons..., t_range] .= ifelse.(
+            presence_zm .< threshold, 0.0f0, fraction_zm
+        )
 
         # --- Weighted Global Mean and Weights ---
         # Calculate fraction of non-missing horizontal grid points
@@ -114,10 +126,12 @@ function calc_planet_means!(data, zm_out, gm_out, weights_zm, weights_gm, axyp, 
         gm_raw = num ./ den
 
         # Apply threshold to data and weights
-        gm_out[ns:ns, colons..., t_range] .= ifelse.(presence_gm .< threshold,
-                                                    Float32(NaN), gm_raw)
-        weights_gm[ns:ns, colons..., t_range] .= ifelse.(presence_gm .< threshold,
-                                                        0.0f0, fraction_gm)
+        gm_out[ns:ns, colons..., t_range] .= ifelse.(
+            presence_gm .< threshold, Float32(NaN), gm_raw
+        )
+        weights_gm[ns:ns, colons..., t_range] .= ifelse.(
+            presence_gm .< threshold, 0.0f0, fraction_gm
+        )
     end
 
     return nothing
@@ -182,17 +196,29 @@ data-sufficiency thresholds.
 # Returns
 - `nothing`
 """
-function calc_annual_mean_ts!(data, zm, gm,
-                              ann_out, zm_ann_out, gm_ann_out,
-                              ann_w_out, zm_ann_w_out, gm_ann_w_out,
-                              dates, t_ranges, fullYearDates;
-                              data_w=nothing, zm_w=nothing, gm_w=nothing,
-                              month_weights=nothing, run_names=nothing,
-                              threshold=100.0)
-
+function calc_annual_mean_ts!(
+    data,
+    zm,
+    gm,
+    ann_out,
+    zm_ann_out,
+    gm_ann_out,
+    ann_w_out,
+    zm_ann_w_out,
+    gm_ann_w_out,
+    dates,
+    t_ranges,
+    fullYearDates;
+    data_w=nothing,
+    zm_w=nothing,
+    gm_w=nothing,
+    month_weights=nothing,
+    run_names=nothing,
+    threshold=100.0,
+)
     nd_data = ndims(data)
-    nd_zm   = ndims(zm)
-    nd_gm   = ndims(gm)
+    nd_zm = ndims(zm)
+    nd_gm = ndims(gm)
     MONTHS_IN_YEAR = 12
 
     # Master temporal weights (e.g., days in month)
@@ -203,11 +229,14 @@ function calc_annual_mean_ts!(data, zm, gm,
         println("Thread $(Threads.threadid()) - Annual means for run: ", name)
 
         sim_years_range = fullYearDates[ns]
-        if isempty(sim_years_range) continue end
+        if isempty(sim_years_range)
+            continue
+        end
 
         target_start = first(sim_years_range)
-        nd_start = findfirst(d -> year(d) == year(target_start) &&
-                                 month(d) == month(target_start), dates)
+        nd_start = findfirst(
+            d -> year(d) == year(target_start) && month(d) == month(target_start), dates
+        )
 
         if isnothing(nd_start)
             @warn "Start date for $name not found in master dates vector."
@@ -220,14 +249,16 @@ function calc_annual_mean_ts!(data, zm, gm,
         mw_gm = reshape(m_weights, ntuple(_ -> 1, nd_gm - 2)..., :)
 
         colons_data = ntuple(_ -> :, nd_data - 2)
-        colons_zm   = ntuple(_ -> :, nd_zm - 2)
-        colons_gm   = ntuple(_ -> :, nd_gm - 2)
+        colons_zm = ntuple(_ -> :, nd_zm - 2)
+        colons_gm = ntuple(_ -> :, nd_gm - 2)
 
         curr_nd = nd_start
 
         for (ny, _) in enumerate(sim_years_range)
             t_slice = curr_nd:(curr_nd + MONTHS_IN_YEAR - 1)
-            if last(t_slice) > t_ranges[ns] break end
+            if last(t_slice) > t_ranges[ns]
+                break
+            end
 
             # Internal engine for combined weighting and thresholding
             function weighted_stats_combined(d_v, in_w_v, m_w_v, dim, thresh)
@@ -256,24 +287,31 @@ function calc_annual_mean_ts!(data, zm, gm,
             # --- Grid-Point Processing ---
             data_v = @view data[ns, colons_data..., t_slice]
             in_w_v = isnothing(data_w) ? nothing : @view data_w[ns, colons_data..., t_slice]
-            m_ij, w_ij = weighted_stats_combined(data_v, in_w_v, @view(mw_ij[colons_data..., t_slice]),
-                nd_data - 1, threshold)
+            m_ij, w_ij = weighted_stats_combined(
+                data_v,
+                in_w_v,
+                @view(mw_ij[colons_data..., t_slice]),
+                nd_data - 1,
+                threshold,
+            )
             ann_out[ns, colons_data..., ny] .= dropdims(m_ij, dims=nd_data-1)
             ann_w_out[ns, colons_data..., ny] .= dropdims(w_ij, dims=nd_data-1)
 
             # --- Zonal Processing ---
             zm_v = @view zm[ns, colons_zm..., t_slice]
             in_zw_v = isnothing(zm_w) ? nothing : @view zm_w[ns, colons_zm..., t_slice]
-            m_zm, w_zm = weighted_stats_combined(zm_v, in_zw_v, @view(mw_zm[colons_zm..., t_slice]),
-                nd_zm - 1, threshold)
+            m_zm, w_zm = weighted_stats_combined(
+                zm_v, in_zw_v, @view(mw_zm[colons_zm..., t_slice]), nd_zm - 1, threshold
+            )
             zm_ann_out[ns, colons_zm..., ny] .= dropdims(m_zm, dims=nd_zm-1)
             zm_ann_w_out[ns, colons_zm..., ny] .= dropdims(w_zm, dims=nd_zm-1)
 
             # --- Global Processing ---
             gm_v = @view gm[ns, colons_gm..., t_slice]
             in_gw_v = isnothing(gm_w) ? nothing : @view gm_w[ns, colons_gm..., t_slice]
-            m_gm, w_gm = weighted_stats_combined(gm_v, in_gw_v, @view(mw_gm[colons_gm..., t_slice]),
-                nd_gm - 1, threshold)
+            m_gm, w_gm = weighted_stats_combined(
+                gm_v, in_gw_v, @view(mw_gm[colons_gm..., t_slice]), nd_gm - 1, threshold
+            )
             gm_ann_out[ns, colons_gm..., ny] .= dropdims(m_gm, dims=nd_gm-1)
             gm_ann_w_out[ns, colons_gm..., ny] .= dropdims(w_gm, dims=nd_gm-1)
 
@@ -309,22 +347,24 @@ data slice, accounting for both spatial and temporal weights.
 # Returns
 - `(mean_res, weight_res)`: A tuple of arrays with rank \$N-1\$ (Time dimension dropped).
 """
-function _calc_weighted_seasonal_mean(data_slice, in_w_slice, m_w_slice, threshold,
-        length_of_season)
+function _calc_weighted_seasonal_mean(
+    data_slice, in_w_slice, m_w_slice, threshold, length_of_season
+)
     t_dim = ndims(data_slice)
     el_type = eltype(data_slice)
 
     # Combined weighting logic
-    eff_in_w = isnothing(in_w_slice) ? ifelse.(isnan.(data_slice), 0.0f0, 1.0f0) : in_w_slice
+    eff_in_w =
+        isnothing(in_w_slice) ? ifelse.(isnan.(data_slice), 0.0f0, 1.0f0) : in_w_slice
     m_w_b = reshape(m_w_slice, ntuple(_ -> 1, t_dim - 1)..., :)
     combined_w = eff_in_w .* m_w_b
 
     mask = .!isnan.(data_slice) .& (eff_in_w .> 0.0f0)
-    v_count = sum(mask, dims=t_dim)
+    v_count = sum(mask; dims=t_dim)
 
     # Weighted calculation
-    num = _nansum(data_slice .* combined_w, dims=t_dim)
-    den = sum(combined_w, dims=t_dim)
+    num = _nansum(data_slice .* combined_w; dims=t_dim)
+    den = sum(combined_w; dims=t_dim)
     res = num ./ den
 
     # Availability fraction [0.0 - 1.0]
@@ -334,7 +374,7 @@ function _calc_weighted_seasonal_mean(data_slice, in_w_slice, m_w_slice, thresho
     res_m = ifelse.(is_invalid, el_type(NaN), res)
     res_w = ifelse.(is_invalid, 0.0f0, fraction)
 
-    return dropdims(res_m, dims=t_dim), dropdims(res_w, dims=t_dim)
+    return dropdims(res_m; dims=t_dim), dropdims(res_w; dims=t_dim)
 end #  calc_weighted_seasonal_mean
 
 """
@@ -381,17 +421,31 @@ zonal-mean sections, and global-mean profiles across multiple simulations.
 # Returns
 - `nothing`
 """
-function calc_seasonal_mean_ts!(data, zm, gm, out_ij, out_zm, out_gm,
-                                w_out_ij, w_out_zm, w_out_gm,
-                                indSeasFirst, dates;
-                                data_w=nothing, zm_w=nothing, gm_w=nothing,
-                                month_weights=nothing, threshold=100.0,
-                                length_of_season=3, run_names=nothing)
+function calc_seasonal_mean_ts!(
+    data,
+    zm,
+    gm,
+    out_ij,
+    out_zm,
+    out_gm,
+    w_out_ij,
+    w_out_zm,
+    w_out_gm,
+    indSeasFirst,
+    dates;
+    data_w=nothing,
+    zm_w=nothing,
+    gm_w=nothing,
+    month_weights=nothing,
+    threshold=100.0,
+    length_of_season=3,
+    run_names=nothing,
+)
 
     # Identify spatial geometry based on the rank of input tensors
     sp_cols_data = ntuple(_ -> :, ndims(data) - 3)
-    sp_cols_zm   = ntuple(_ -> :, ndims(zm) - 3)
-    sp_cols_gm   = ntuple(_ -> :, ndims(gm) - 3)
+    sp_cols_zm = ntuple(_ -> :, ndims(zm) - 3)
+    sp_cols_gm = ntuple(_ -> :, ndims(gm) - 3)
 
     w_vec = isnothing(month_weights) ? ones(Float32, length(dates)) : month_weights
 
@@ -402,34 +456,45 @@ function calc_seasonal_mean_ts!(data, zm, gm, out_ij, out_zm, out_gm,
         for ne in axes(indSeasFirst, 2)     # Seasons
             for ny in axes(indSeasFirst, 3) # Years
                 t_start = indSeasFirst[ns, ne, ny]
-                if t_start == 0 break end
+                if t_start == 0
+                    break
+                end
 
                 t_slice = t_start:(t_start + length_of_season - 1)
                 m_w_slice = @view w_vec[t_slice]
 
                 # --- Grid-Point Mean & Weight ---
                 d_v = @view data[ns, :, sp_cols_data..., t_slice]
-                iw_v = isnothing(data_w) ? nothing : @view data_w[ns, :, sp_cols_data..., t_slice]
-                res, w_res = _calc_weighted_seasonal_mean(d_v, iw_v, m_w_slice, threshold,
-                    length_of_season)
+                iw_v = if isnothing(data_w)
+                    nothing
+                else
+                    @view data_w[ns, :, sp_cols_data..., t_slice]
+                end
+                res, w_res = _calc_weighted_seasonal_mean(
+                    d_v, iw_v, m_w_slice, threshold, length_of_season
+                )
 
                 out_ij[ns, :, ne, sp_cols_data..., ny] .= res
                 w_out_ij[ns, :, ne, sp_cols_data..., ny] .= w_res
 
                 # --- Zonal Mean & Weight ---
                 z_v = @view zm[ns, :, sp_cols_zm..., t_slice]
-                izw_v = isnothing(zm_w) ? nothing : @view zm_w[ns, :, sp_cols_zm..., t_slice]
-                z_res, zw_res = _calc_weighted_seasonal_mean(z_v, izw_v, m_w_slice, threshold,
-                    length_of_season)
+                izw_v =
+                    isnothing(zm_w) ? nothing : @view zm_w[ns, :, sp_cols_zm..., t_slice]
+                z_res, zw_res = _calc_weighted_seasonal_mean(
+                    z_v, izw_v, m_w_slice, threshold, length_of_season
+                )
 
                 out_zm[ns, :, ne, sp_cols_zm..., ny] .= z_res
                 w_out_zm[ns, :, ne, sp_cols_zm..., ny] .= zw_res
 
                 # --- Global Mean & Weight ---
                 g_v = @view gm[ns, :, sp_cols_gm..., t_slice]
-                igw_v = isnothing(gm_w) ? nothing : @view gm_w[ns, :, sp_cols_gm..., t_slice]
-                g_res, gw_res = _calc_weighted_seasonal_mean(g_v, igw_v, m_w_slice, threshold,
-                    length_of_season)
+                igw_v =
+                    isnothing(gm_w) ? nothing : @view gm_w[ns, :, sp_cols_gm..., t_slice]
+                g_res, gw_res = _calc_weighted_seasonal_mean(
+                    g_v, igw_v, m_w_slice, threshold, length_of_season
+                )
 
                 out_gm[ns, :, ne, sp_cols_gm..., ny] .= g_res
                 w_out_gm[ns, :, ne, sp_cols_gm..., ny] .= gw_res
@@ -464,7 +529,9 @@ The internal computational engine for multi-dimensional weighted population stat
 3. **Weighted Mean**: \$\\mu = \\sum(x_i W_i) / \\sum(W_i)\$ for valid points.
 4. **Weighted Variance**: \$\\sigma^2 = \\sum(W_i (x_i - \\mu)^2) / \\sum(W_i)\$.
 5. **Sufficiency**: If \$(f \\times 100) < threshold\$, outputs are set to `NaN` and weight to `0.0`."""
-function _core_statistics!(moa, soa, w_moa, ska, kua, data, time_indices, weights, data_w, threshold)
+function _core_statistics!(
+    moa, soa, w_moa, ska, kua, data, time_indices, weights, data_w, threshold
+)
     t_axis = ndims(data)
     v = selectdim(data, t_axis, time_indices)
     window_len = length(time_indices)
@@ -472,7 +539,11 @@ function _core_statistics!(moa, soa, w_moa, ska, kua, data, time_indices, weight
 
     # 1. Spatial/Availability Weights (data_w)
     # Extract the matching time slice from the input weight tensor
-    eff_data_w = isnothing(data_w) ? ifelse.(isnan.(v), 0.0f0, 1.0f0) : selectdim(data_w, t_axis, time_indices)
+    eff_data_w = if isnothing(data_w)
+        ifelse.(isnan.(v), 0.0f0, 1.0f0)
+    else
+        selectdim(data_w, t_axis, time_indices)
+    end
 
     # 2. Temporal Weights (e.g. days in month)
     if isnothing(weights)
@@ -485,26 +556,26 @@ function _core_statistics!(moa, soa, w_moa, ska, kua, data, time_indices, weight
     combined_w = eff_data_w .* w_temp
     mask = .!isnan.(v) .& (eff_data_w .> 0.0f0)
 
-    v_count = sum(mask, dims=t_dim)
-    sum_w = sum(combined_w, dims=t_dim)
+    v_count = sum(mask; dims=t_dim)
+    sum_w = sum(combined_w; dims=t_dim)
 
     # Weighted Mean
-    mu_w = _nansum(v .* combined_w, dims=t_dim) ./ sum_w
+    mu_w = _nansum(v .* combined_w; dims=t_dim) ./ sum_w
 
     # Weighted Standard Deviation
     diff = v .- mu_w
-    var_w = _nansum(combined_w .* mask .* diff.^2, dims=t_dim) ./ sum_w
+    var_w = _nansum(combined_w .* mask .* diff .^ 2; dims=t_dim) ./ sum_w
     sigma_w = sqrt.(var_w)
 
     # Calculate Aggregate Availability Weight [0.0 - 1.0]
     fraction = Float32.(v_count ./ window_len)
 
     # Thresholding
-    invalid = dropdims((fraction .* 100.0f0) .< Float64(threshold), dims=t_dim)
+    invalid = dropdims((fraction .* 100.0f0) .< Float64(threshold); dims=t_dim)
 
-    moa .= ifelse.(invalid, eltype(moa)(NaN), dropdims(mu_w, dims=t_dim))
-    soa .= ifelse.(invalid, eltype(soa)(NaN), dropdims(sigma_w, dims=t_dim))
-    w_moa .= ifelse.(invalid, 0.0f0, dropdims(fraction, dims=t_dim))
+    moa .= ifelse.(invalid, eltype(moa)(NaN), dropdims(mu_w; dims=t_dim))
+    soa .= ifelse.(invalid, eltype(soa)(NaN), dropdims(sigma_w; dims=t_dim))
+    w_moa .= ifelse.(invalid, 0.0f0, dropdims(fraction; dims=t_dim))
 
     return nothing
 end
@@ -524,21 +595,41 @@ Calculates multi-year statistics over a continuous block of years.
 - `moa`, `soa`, `w_moa`: Output tensors. Shape: (Sim, Var, [Spatial...]).
 - `indices`: [Sim, 2] matrix of (start_idx, end_idx).
 """
-function calc_multiyear_stats!(moa, soa, w_moa, ska, kua, data, indices::AbstractMatrix, ::Val{:annual}; weights=nothing, data_w=nothing, threshold=100.0)
+function calc_multiyear_stats!(
+    moa,
+    soa,
+    w_moa,
+    ska,
+    kua,
+    data,
+    indices::AbstractMatrix,
+    ::Val{:annual};
+    weights=nothing,
+    data_w=nothing,
+    threshold=100.0,
+)
     if !isnothing(data_w) && size(data) != size(data_w)
-        throw(DimensionMismatch("Input Data size $(size(data)) and data_w size $(size(data_w)) must match."))
+        throw(
+            DimensionMismatch(
+                "Input Data size $(size(data)) and data_w size $(size(data_w)) must match."
+            ),
+        )
     end
 
     Threads.@threads for ns in axes(data, 1)
         i_s, i_e = indices[ns, 1], indices[ns, 2]
         if (i_s > 0 && i_e >= i_s)
             _core_statistics!(
-                selectdim(moa, 1, ns), selectdim(soa, 1, ns), selectdim(w_moa, 1, ns),
-                nothing, nothing,
-                selectdim(data, 1, ns), i_s:i_e,
+                selectdim(moa, 1, ns),
+                selectdim(soa, 1, ns),
+                selectdim(w_moa, 1, ns),
+                nothing,
+                nothing,
+                selectdim(data, 1, ns),
+                i_s:i_e,
                 isnothing(weights) ? nothing : weights[ns, i_s:i_e],
                 isnothing(data_w) ? nothing : selectdim(data_w, 1, ns),
-                threshold
+                threshold,
             )
         end
     end
@@ -561,9 +652,25 @@ Calculates climatological monthly statistics (e.g., Average January over 30 year
 - `moa`, `soa`, `w_moa`: Output tensors. Shape: (Sim, Var, [Spatial...], 12).
 - `indices`: [Sim, 12] matrix of `Vector{Int}` containing time steps for each month.
 """
-function calc_multiyear_stats!(moa, soa, w_moa, ska, kua, data, indices::AbstractMatrix, ::Val{:monthly}; weights=nothing, data_w=nothing, threshold=100.0)
+function calc_multiyear_stats!(
+    moa,
+    soa,
+    w_moa,
+    ska,
+    kua,
+    data,
+    indices::AbstractMatrix,
+    ::Val{:monthly};
+    weights=nothing,
+    data_w=nothing,
+    threshold=100.0,
+)
     if !isnothing(data_w) && size(data) != size(data_w)
-        throw(DimensionMismatch("Input Data size $(size(data)) and data_w size $(size(data_w)) must match."))
+        throw(
+            DimensionMismatch(
+                "Input Data size $(size(data)) and data_w size $(size(data_w)) must match."
+            ),
+        )
     end
 
     Threads.@threads for ns in axes(data, 1)
@@ -576,11 +683,16 @@ function calc_multiyear_stats!(moa, soa, w_moa, ska, kua, data, indices::Abstrac
                 w_view = selectdim(selectdim(w_moa, 1, ns), ndims(w_moa)-1, m)
 
                 _core_statistics!(
-                    m_view, s_view, w_view, nothing, nothing,
-                    selectdim(data, 1, ns), t_vec,
+                    m_view,
+                    s_view,
+                    w_view,
+                    nothing,
+                    nothing,
+                    selectdim(data, 1, ns),
+                    t_vec,
                     isnothing(weights) ? nothing : weights[ns, t_vec],
                     isnothing(data_w) ? nothing : selectdim(data_w, 1, ns),
-                    threshold
+                    threshold,
                 )
             end
         end
@@ -604,9 +716,25 @@ Calculates multi-year statistics for seasonal data.
 - `moa`, `soa`, `w_moa`: Output tensors. Shape: (Sim, Var, Season, [Spatial...]).
 - `indices`: [Sim, Season, 2] matrix of (start_year, end_year).
 """
-function calc_multiyear_stats!(moa, soa, w_moa, ska, kua, data, indices::AbstractArray{Int, 3}, ::Val{:seasonal}; weights=nothing, data_w=nothing, threshold=100.0)
+function calc_multiyear_stats!(
+    moa,
+    soa,
+    w_moa,
+    ska,
+    kua,
+    data,
+    indices::AbstractArray{Int,3},
+    ::Val{:seasonal};
+    weights=nothing,
+    data_w=nothing,
+    threshold=100.0,
+)
     if !isnothing(data_w) && size(data) != size(data_w)
-        throw(DimensionMismatch("Input Data size $(size(data)) and data_w size $(size(data_w)) must match."))
+        throw(
+            DimensionMismatch(
+                "Input Data size $(size(data)) and data_w size $(size(data_w)) must match."
+            ),
+        )
     end
 
     Threads.@threads for ns in axes(data, 1)
@@ -618,14 +746,20 @@ function calc_multiyear_stats!(moa, soa, w_moa, ska, kua, data, indices::Abstrac
                 s_view = selectdim(selectdim(soa, 1, ns), 2, s)
                 w_view = selectdim(selectdim(w_moa, 1, ns), 2, s)
                 d_view = selectdim(selectdim(data, 1, ns), 2, s)
-                dw_view = isnothing(data_w) ? nothing : selectdim(selectdim(data_w, 1, ns), 2, s)
+                dw_view =
+                    isnothing(data_w) ? nothing : selectdim(selectdim(data_w, 1, ns), 2, s)
 
                 _core_statistics!(
-                    m_view, s_view, w_view, nothing, nothing,
-                    d_view, i_s:i_e,
+                    m_view,
+                    s_view,
+                    w_view,
+                    nothing,
+                    nothing,
+                    d_view,
+                    i_s:i_e,
                     isnothing(weights) ? nothing : weights[ns, i_s:i_e],
                     dw_view,
-                    threshold
+                    threshold,
                 )
             end
         end
@@ -657,8 +791,14 @@ Temporal Type (Annual, Monthly, Seasonal) and Geometry Rank (Grid, Zonal, Global
 # Returns
 - `nothing` (Mutates output arrays in-place).
 """
-calc_multiyear_stats!(moa, soa, w_moa, ska, kua, data, idx, type::Val, geom::Val; kwargs...) =
-    (calc_multiyear_stats!(moa, soa, w_moa, ska, kua, data, idx, type; kwargs...); return nothing)
+function calc_multiyear_stats!(
+    moa, soa, w_moa, ska, kua, data, idx, type::Val, geom::Val; kwargs...
+)
+    (
+        calc_multiyear_stats!(moa, soa, w_moa, ska, kua, data, idx, type; kwargs...);
+        return nothing
+    )
+end
 
 """
     calc_anomalies!(anom_out, data, clim_mean, indices)
@@ -737,7 +877,7 @@ function calc_linear_trends!(slopes, data, weights, dates)
 
         # Spatial dimensions loop (flattened for generic rank handling)
         # We iterate over all indices except the last (time) dimension
-        for I in CartesianIndices(size(d_sim)[1:end-1])
+        for I in CartesianIndices(size(d_sim)[1:(end - 1)])
             y = d_sim[I, :]
             w = w_sim[I, :]
 
@@ -755,10 +895,10 @@ function calc_linear_trends!(slopes, data, weights, dates)
 
             # WLS Formula for slope (b):
             # b = [ΣwΣwty - ΣwtΣwy] / [ΣwΣwt² - (Σwt)²]
-            sw   = sum(w_v)
-            swt  = sum(w_v .* t_v)
-            swy  = sum(w_v .* y_v)
-            swtt = sum(w_v .* t_v.^2)
+            sw = sum(w_v)
+            swt = sum(w_v .* t_v)
+            swy = sum(w_v .* y_v)
+            swtt = sum(w_v .* t_v .^ 2)
             swty = sum(w_v .* t_v .* y_v)
 
             denom = (sw * swtt - swt^2)
@@ -804,7 +944,7 @@ function calc_linear_trends_sig!(slopes, p_values, data, weights, dates)
         s_sim = selectdim(slopes, 1, ns)
         p_sim = selectdim(p_values, 1, ns)
 
-        for I in CartesianIndices(size(d_sim)[1:end-1])
+        for I in CartesianIndices(size(d_sim)[1:(end - 1)])
             y = d_sim[I, :]
             w = w_sim[I, :]
 
@@ -821,7 +961,7 @@ function calc_linear_trends_sig!(slopes, p_values, data, weights, dates)
 
             # WLS Components
             sw, swt, swy = sum(w_v), sum(w_v .* t_v), sum(w_v .* y_v)
-            swtt, swty = sum(w_v .* t_v.^2), sum(w_v .* t_v .* y_v)
+            swtt, swty = sum(w_v .* t_v .^ 2), sum(w_v .* t_v .* y_v)
 
             delta = sw * swtt - swt^2
             if delta ≈ 0
@@ -837,7 +977,7 @@ function calc_linear_trends_sig!(slopes, p_values, data, weights, dates)
             y_pred = a .+ b .* t_v
             residuals = y_v .- y_pred
             # Weighted Residual Sum of Squares
-            wrss = sum(w_v .* residuals.^2)
+            wrss = sum(w_v .* residuals .^ 2)
 
             # Standard Error of the slope
             # σ_b = sqrt( [WRSS / (n-2)] / Σ(w(t - t_avg)^2) )
@@ -920,9 +1060,9 @@ Calculates weighted ensemble statistics across multiple simulations.
 3. Higher moments (Skewness \$G_1\$, Kurtosis \$G_2\$) are calculated using
    weighted standardized moments.
 """
-function calc_ensemble_stats!(ens_mean, ens_std, moa;
-                              ens_ska=nothing, ens_kua=nothing,
-                              w_moa=nothing, threshold=0.0)
+function calc_ensemble_stats!(
+    ens_mean, ens_std, moa; ens_ska=nothing, ens_kua=nothing, w_moa=nothing, threshold=0.0
+)
     n_sims = size(moa, 1)
     t_dim = ndims(moa)
     el_type = eltype(moa)
@@ -930,41 +1070,41 @@ function calc_ensemble_stats!(ens_mean, ens_std, moa;
     # 1. Handle Optional Weights
     # If no weights provided, use 1.0 for non-NaN points
     weights = isnothing(w_moa) ? ifelse.(isnan.(moa), 0.0f0, 1.0f0) : w_moa
-    sum_w = sum(weights, dims=1)
+    sum_w = sum(weights; dims=1)
 
     # 2. Weighted Ensemble Mean (μ)
-    mu_ens = _nansum(moa .* weights, dims=1) ./ sum_w
+    mu_ens = _nansum(moa .* weights; dims=1) ./ sum_w
 
     # 3. Deviations and Variance (σ²)
     diff = moa .- mu_ens
-    var_ens = _nansum(weights .* diff.^2, dims=1) ./ sum_w
+    var_ens = _nansum(weights .* diff .^ 2; dims=1) ./ sum_w
     sigma_ens = sqrt.(var_ens)
 
     # 4. Optional Higher Moments
     # Skewness (3rd moment)
     if !isnothing(ens_ska)
-        m3 = _nansum(weights .* diff.^3, dims=1) ./ sum_w
-        ska = m3 ./ (sigma_ens.^3)
+        m3 = _nansum(weights .* diff .^ 3; dims=1) ./ sum_w
+        ska = m3 ./ (sigma_ens .^ 3)
         # Threshold and collapse
         invalid_ska = (sum_w ./ Float32(n_sims) .* 100.0f0) .< threshold
-        ens_ska .= dropdims(ifelse.(invalid_ska, el_type(NaN), ska), dims=1)
+        ens_ska .= dropdims(ifelse.(invalid_ska, el_type(NaN), ska); dims=1)
     end
 
     # Kurtosis (4th moment)
     if !isnothing(ens_kua)
-        m4 = _nansum(weights .* diff.^4, dims=1) ./ sum_w
-        kua = (m4 ./ (var_ens.^2)) .- 3.0f0 # Excess Kurtosis
+        m4 = _nansum(weights .* diff .^ 4; dims=1) ./ sum_w
+        kua = (m4 ./ (var_ens .^ 2)) .- 3.0f0 # Excess Kurtosis
         # Threshold and collapse
         invalid_kua = (sum_w ./ Float32(n_sims) .* 100.0f0) .< threshold
-        ens_kua .= dropdims(ifelse.(invalid_kua, el_type(NaN), kua), dims=1)
+        ens_kua .= dropdims(ifelse.(invalid_kua, el_type(NaN), kua); dims=1)
     end
 
     # 5. Thresholding and Assignment for Mean/Std
     combined_fraction = sum_w ./ Float32(n_sims)
     invalid = combined_fraction .< (Float32(threshold) / 100.0f0)
 
-    ens_mean .= dropdims(ifelse.(invalid, el_type(NaN), mu_ens), dims=1)
-    ens_std .= dropdims(ifelse.(invalid, el_type(NaN), sigma_ens), dims=1)
+    ens_mean .= dropdims(ifelse.(invalid, el_type(NaN), mu_ens); dims=1)
+    ens_std .= dropdims(ifelse.(invalid, el_type(NaN), sigma_ens); dims=1)
 
     return nothing
 end # function calc_ensemble_stats!
@@ -990,8 +1130,9 @@ the data (e.g., positive vs. negative trends).
 # Returns
 - `nothing` (Mutates output arrays in-place).
 """
-function calc_ensemble_agreement!(pos_count, neg_count, agreement_frac, moa;
-                                  w_moa=nothing, threshold=0.0)
+function calc_ensemble_agreement!(
+    pos_count, neg_count, agreement_frac, moa; w_moa=nothing, threshold=0.0
+)
     n_sims = size(moa, 1)
     el_type = eltype(moa)
 
@@ -1001,9 +1142,9 @@ function calc_ensemble_agreement!(pos_count, neg_count, agreement_frac, moa;
 
     # 2. Count Positive and Negative signs across the 'Sim' dimension (dim 1)
     # We use sum(...) on booleans which Julia handles efficiently
-    p_cnt = sum(valid_mask .& (moa .> 0), dims=1)
-    n_cnt = sum(valid_mask .& (moa .< 0), dims=1)
-    v_cnt = sum(valid_mask, dims=1) # Total valid simulations per point
+    p_cnt = sum(valid_mask .& (moa .> 0); dims=1)
+    n_cnt = sum(valid_mask .& (moa .< 0); dims=1)
+    v_cnt = sum(valid_mask; dims=1) # Total valid simulations per point
 
     # 3. Calculate Agreement Fraction
     # If 9 out of 10 models are positive, agreement is 0.9.
@@ -1016,9 +1157,9 @@ function calc_ensemble_agreement!(pos_count, neg_count, agreement_frac, moa;
     insufficient = (v_cnt ./ Float32(n_sims) .* 100.0f0) .< threshold
 
     # 5. Final Assignment
-    pos_count .= dropdims(ifelse.(insufficient, 0, p_cnt), dims=1)
-    neg_count .= dropdims(ifelse.(insufficient, 0, n_cnt), dims=1)
-    agreement_frac .= dropdims(ifelse.(insufficient, el_type(NaN), frac), dims=1)
+    pos_count .= dropdims(ifelse.(insufficient, 0, p_cnt); dims=1)
+    neg_count .= dropdims(ifelse.(insufficient, 0, n_cnt); dims=1)
+    agreement_frac .= dropdims(ifelse.(insufficient, el_type(NaN), frac); dims=1)
 
     return nothing
 end # function calc_ensemble_agreement!

@@ -1,279 +1,211 @@
+## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
+##   used from 2026-10-11 to 2026-10-24
+
 """
-    Constructors
+    PlanetTools.Constructors
 
-Small utility constructors used in ModelE / ROCKE-3D post-processing and plotting
-workflows.
-
-# Exported functions
-
-| Function             | Purpose                                                                  |
-|:---------------------|:-------------------------------------------------------------------------|
-| [`fnames_modelE`](@ref) | Build the matrix of monthly ModelE output file names (`MONYYYY.<group><runID><ext>`) for several runs and a date range. |
-| [`compose_palette`](@ref)  | Build a discrete color palette (one color per interval between contour/bin `breaks`) from one or two `ColorSchemes.jl` palettes and an optional middle color. |
-
-# Dependencies
-
-- `Dates` (standard library): month/year date ranges.
-- `ColorSchemes.jl`: named color schemes (`colorschemes[:Blues]`, …).
-- `Makie.jl`: only `Makie.to_color` and the `Makie.RGBAf` color type, so the
-  returned palette can be passed directly to Makie plotting functions.
-
-# Example
-
-```julia
-using .Constructors
-fnames = fnames_modelE(2000, 1, 2000, 12, "aij", ["E6TomaF40", "E6TomaF41"])
-pal    = compose_palette([-2, -1, -0.5, 0.5, 1, 2];
-                         palette1 = :Blues, midcolor = :white,
-                         palette2 = :Reds,  demarcation = 0.0)
-```
-# Notes
-
-Anthropic's Claude Opus 5.5 Medium was used for debugging, code optimization, and writing docstrings
-on Oct 11, 2026.
+Submodule of PlanetTools with utility constructors for ModelE / ROCKE-3D post-processing
+and plotting: [`fnames_modele`](@ref) builds monthly output file names and
+[`compose_palette`](@ref) builds discrete color palettes for binned plots. Load it with
+`using PlanetTools.Constructors`.
 """
 module Constructors
 
-export fnames_modelE, compose_palette
+using ColorSchemes: ColorScheme, colorschemes
+using Dates: Date, Month, month, year
+using Makie: Makie
 
-using ColorSchemes, Dates
-import Makie
+export fnames_modele, compose_palette
 
 # Locale-independent upper-case month abbreviations used in ModelE file names.
-const MODELE_MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-                       "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
+const MODELE_MONTHS = (
+    "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
+)
 
 """
-    fnames_modelE(fyear, fmonth, lyear, lmonth, gname, ids; ext = ".nc") -> Matrix{String}
+    fnames_modele(fyear, fmonth, lyear, lmonth, gname, ids; ext=".nc") -> Matrix{String}
 
-Construct the names of monthly ModelE (or ROCKE-3D) post-processed output files for
-every combination of simulation (run ID) and month in an inclusive date range.
-
-Each file name is assembled as
-
-    <MON><YYYY>.<gname><runID><ext>
-
-for example `"JAN1950.aijE001.nc"`, where
-
-- `<MON>`   is the upper-case three-letter English month abbreviation
-  (`JAN`, `FEB`, …, `DEC`), independent of the system locale,
-- `<YYYY>`  is the year zero-padded to (at least) four digits
-  (year 850 → `"0850"`), matching the original implementation,
-- `<gname>` is the diagnostic file group (e.g. `"aij"`, `"aijl"`, `"ijk"`,
-  `"taij"`, `"adiurn"`),
-- `<runID>` is the simulation identifier as it appears in the file name,
-- `<ext>`   is the file extension (default `".nc"`).
-
-The function only builds strings; it does not check whether the files exist on disk.
-Prepend a directory with e.g. `joinpath.(datadir, fnames)`.
+Build ModelE / ROCKE-3D monthly output file names `"<MON><YYYY>.<gname><id><ext>"`, e.g.
+`"JAN1950.aijE001.nc"`, for each run ID in `ids` and each month from `fyear`-`fmonth` to
+`lyear`-`lmonth` (inclusive). `<MON>` is the upper-case English month abbreviation
+(locale-independent) and `<YYYY>` the year zero-padded to four digits.
 
 # Arguments
-- `fyear::Integer`: first year of the range.
-- `fmonth::Integer`: first month of the range, `1 ≤ fmonth ≤ 12`.
-- `lyear::Integer`: last year of the range (inclusive).
-- `lmonth::Integer`: last month of the range (inclusive), `1 ≤ lmonth ≤ 12`.
-- `gname::AbstractString`: diagnostic file group name (e.g. `"aij"`).
-- `ids::AbstractVector{<:AbstractString}`: run IDs, one row of the output per ID.
-  Any string-like element type is accepted (e.g. the `SubString`s returned by
-  `split`).
+- `fyear::Integer`: first year, `≥ 0`.
+- `fmonth::Integer`: first month, `1:12`.
+- `lyear::Integer`: last year, `≥ 0`.
+- `lmonth::Integer`: last month, `1:12`.
+- `gname::AbstractString`: diagnostic file group, e.g. `"aij"` or `"taij"`.
+- `ids::AbstractVector{<:AbstractString}`: run IDs.
 
 # Keywords
-- `ext::AbstractString = ".nc"`: file extension appended to every name. Pass `""`
-  to omit the extension.
+- `ext::AbstractString=".nc"`: file extension; `""` for none.
 
 # Returns
-- `Matrix{String}` of size `(length(ids), nmonths)`: element `[i, j]` is the file
-  for run `ids[i]` and the `j`-th month of the range, in chronological order.
-  `nmonths = 12*(lyear - fyear) + (lmonth - fmonth) + 1`.
+- `Matrix{String}`: size `(length(ids), nmonths)`; rows are runs, columns are months in
+    chronological order.
 
 # Throws
-- `ArgumentError` if a month is outside `1:12`.
-- `ArgumentError` if the start date `(fyear, fmonth)` is later than the end date
-  `(lyear, lmonth)` (the original version silently returned an empty matrix).
-- `ArgumentError` if `ids` is empty.
+- `ArgumentError`: if a month is outside `1:12`, a year is negative, the start date is
+    after the end date, or `ids` is empty.
 
-# Example
-```julia
-julia> using .Constructors
+See also [`compose_palette`](@ref).
 
-julia> fnames_modelE(1950, 11, 1951, 2, "aij", ["E001", "E002"])
-2×4 Matrix{String}:
- "NOV1950.aijE001.nc"  "DEC1950.aijE001.nc"  "JAN1951.aijE001.nc"  "FEB1951.aijE001.nc"
- "NOV1950.aijE002.nc"  "DEC1950.aijE002.nc"  "JAN1951.aijE002.nc"  "FEB1951.aijE002.nc"
-
-julia> files = joinpath.("/discover/nobackup/me/E001", fnames_modelE(2000, 1, 2000, 12, "taij", ["E001"]; ext = ".nc"));
-
-julia> vec(files)  # 12 monthly paths for one run
+# Examples
+```jldoctest
+julia> fnames_modele(1950, 12, 1951, 1, "aij", ["E001", "E002"])
+2×2 Matrix{String}:
+ "DEC1950.aijE001.nc"  "JAN1951.aijE001.nc"
+ "DEC1950.aijE002.nc"  "JAN1951.aijE002.nc"
 ```
 """
-function fnames_modelE(fyear::Integer, fmonth::Integer, lyear::Integer,
-        lmonth::Integer, gname::AbstractString,
-        ids::AbstractVector{<:AbstractString}; ext::AbstractString = ".nc")
-
-    (1 <= fmonth <= 12) || throw(ArgumentError("fmonth must be in 1:12, got $fmonth"))
-    (1 <= lmonth <= 12) || throw(ArgumentError("lmonth must be in 1:12, got $lmonth"))
+function fnames_modele(
+    fyear::Integer,
+    fmonth::Integer,
+    lyear::Integer,
+    lmonth::Integer,
+    gname::AbstractString,
+    ids::AbstractVector{<:AbstractString};
+    ext::AbstractString=".nc",
+)
+    1 <= fmonth <= 12 || throw(ArgumentError("fmonth must be in 1:12, got $fmonth"))
+    1 <= lmonth <= 12 || throw(ArgumentError("lmonth must be in 1:12, got $lmonth"))
+    if fyear < 0 || lyear < 0
+        throw(ArgumentError("years must be non-negative, got fyear=$fyear, lyear=$lyear"))
+    end
     isempty(ids) && throw(ArgumentError("ids must contain at least one run ID"))
 
     dfirst = Date(fyear, fmonth)
-    dlast  = Date(lyear, lmonth)
-    dfirst <= dlast || throw(ArgumentError(
-        "start date $(fyear)-$(fmonth) is after end date $(lyear)-$(lmonth)"))
+    dlast = Date(lyear, lmonth)
+    if dfirst > dlast
+        msg = "start date $fyear-$fmonth is after end date $lyear-$lmonth"
+        throw(ArgumentError(msg))
+    end
 
-    # "MONYYYY" stamps, chronological
-    cmy = [MODELE_MONTHS[month(d)] * lpad(year(d), 4, '0')
-           for d in dfirst:Month(1):dlast]
+    # "MONYYYY" stamps in chronological order.
+    cmy = [MODELE_MONTHS[month(d)] * lpad(year(d), 4, '0') for d in dfirst:Month(1):dlast]
 
-    # rows = run IDs, columns = months
+    # Rows are run IDs, columns are months.
     return [string(m, ".", gname, id, ext) for id in ids, m in cmy]
-end # fnames_modelE
-
+end
 
 # Return a ColorScheme for a palette given as a ColorScheme, Symbol, or String.
 _scheme(p::ColorScheme) = p
-_scheme(p::Union{Symbol, AbstractString}) = colorschemes[Symbol(p)]
+function _scheme(p::Union{Symbol,AbstractString})
+    key = Symbol(p)
+    if !haskey(colorschemes, key)
+        msg = "unknown color scheme :$key (see keys(ColorSchemes.colorschemes))"
+        throw(ArgumentError(msg))
+    end
+    return colorschemes[key]
+end
 
-# n colors sampled evenly over [0, 1] of a scheme; a single color is the scheme's
-# midpoint (0.5), as in the original intention of the "c == 1" branch.
+# `n` colors sampled evenly over [0, 1] of a scheme; a single color is the scheme's
+# midpoint (0.5) rather than its first color.
 function _sample(p, n::Integer)
     n <= 0 && return Makie.RGBAf[]
     cs = _scheme(p)
-    x  = n == 1 ? [0.5] : collect(range(0.0, 1.0; length = n))
-    return Makie.RGBAf[Makie.to_color(c) for c in get(cs, x)]
+    x = n == 1 ? (0.5,) : range(0.0, 1.0; length=n)
+    return Makie.RGBAf[Makie.to_color(get(cs, xi)) for xi in x]
 end
 
 """
-    compose_palette(breaks; palette1 = nothing, midcolor = nothing,
-                    palette2 = nothing, demarcation = nothing) -> Vector{Makie.RGBAf}
+    compose_palette(breaks; kwargs...) -> Vector{Makie.RGBAf}
 
-Compose a discrete color palette with exactly one color per interval between
-consecutive `breaks` (i.e. `length(breaks) - 1` colors), from one or two continuous
-color schemes and an optional middle color. Typical use: discrete filled contours or
-binned heat maps (`contourf`, `heatmap` with categorical bins), especially diverging
-plots of anomalies (`demarcation = 0`) or ratios (`demarcation = 1`, the default).
+Return one color per interval between consecutive `breaks` (`length(breaks) - 1` colors)
+for discrete contour or binned plots, built from one or two color schemes and an optional
+`midcolor`.
 
-# How the colors are assigned
+With both palettes, the intervals at or below `demarcation` take `palette1`, the interval
+from the last break `≤ demarcation` to the next break takes `midcolor` (or else
+`palette2`), and the intervals above take `palette2`. If that interval does not exist,
+`midcolor` is not used and a warning is issued. With one palette, `midcolor` takes the
+top interval (`palette1`) or the bottom interval (`palette2`). Each palette is sampled
+evenly from its first to its last color; a single sample is its midpoint.
 
-Let `n = length(breaks)`, so there are `n - 1` intervals
-`[breaks[i], breaks[i+1]]`, `i = 1, …, n-1`.
-
-**Two palettes (`palette1` and `palette2`)** — diverging palette. With
-`k = count(≤(demarcation), breaks)`:
-
-- the `max(k - 1, 0)` intervals lying entirely at or below `demarcation` are colored
-  with `palette1` (sampled from its start, value 0, to its end, value 1);
-- the interval that straddles `demarcation` (from the last break `≤ demarcation`
-  to the first break `> demarcation`; it exists only if `1 ≤ k ≤ n-1`) gets
-  `midcolor` if one is given, otherwise it is the first `palette2` interval;
-- the remaining intervals above get `palette2` (sampled from 0 to 1).
-
-To center `midcolor` on the demarcation value, choose `breaks` so that the
-demarcation value lies *strictly between* two breaks, e.g.
-`breaks = [-2, -1, -0.5, 0.5, 1, 2]` with `demarcation = 0`. If `demarcation`
-equals a break, the "straddling" interval is the one just above it.
-If no break lies on one side of `demarcation`, there is no straddling interval:
-all intervals go to the other palette and `midcolor` is not used (a warning is
-issued).
-
-**Only `palette1`** — `midcolor` (if given) becomes the *last* color (top interval);
-the other `n - 2` (or `n - 1` without `midcolor`) colors come from `palette1`.
-
-**Only `palette2`** — `midcolor` (if given) becomes the *first* color (bottom
-interval); the rest come from `palette2`.
-
-A palette that contributes exactly one color contributes its midpoint color
-(`get(scheme, 0.5)`). Each palette is always sampled from its first to its last
-color; pass a reversed scheme (`reverse(colorschemes[:Blues])`) to flip a branch.
-For a conventional blue–white–red anomaly map, `palette1` is usually a *reversed*
-blue scheme so that the darkest blue sits in the lowest interval.
+Use `contourf(x, y, z; levels=breaks, colormap=pal)`. For extension bands pass
+`extendlow=first(pal), extendhigh=last(pal)`; `:auto` makes Makie resample the colormap.
 
 # Arguments
-- `breaks::AbstractVector{<:Real}`: interval boundaries, sorted in non-decreasing
-  order, `length(breaks) ≥ 2`.
+- `breaks::AbstractVector{<:Real}`: finite, strictly increasing, at least two values.
 
 # Keywords
-- `palette1 = nothing`: lower palette; a `Symbol`/`String` naming a scheme in
-  `ColorSchemes.colorschemes` (e.g. `:Blues`, `:viridis`) or a `ColorScheme`.
-- `midcolor = nothing`: any color accepted by `Makie.to_color`
-  (`:white`, `"gray90"`, `RGBf(1,1,1)`, …).
-- `palette2 = nothing`: upper palette, same accepted types as `palette1`.
-- `demarcation = nothing`: value separating the two palettes; `nothing` means `1.0`
-  (useful for ratios). Only used when both palettes are given.
-
-At least one of `palette1`, `palette2` must be given.
+- `palette1=nothing`: lower palette, a `ColorScheme` or its name as `Symbol`/`String`.
+- `midcolor=nothing`: any color accepted by `Makie.to_color`, e.g. `:white`.
+- `palette2=nothing`: upper palette, same types as `palette1`.
+- `demarcation::Real=1.0`: value separating the palettes; used only if both are given.
 
 # Returns
-- `Vector{Makie.RGBAf}` of length `length(breaks) - 1`, ordered from the lowest to
-  the highest interval — directly usable as `colormap` (with
-  `Makie.Categorical` / `cgrad(pal; categorical = true)`) or for `contourf` with
-  `levels = breaks`.
+- `Vector{Makie.RGBAf}`: colors from the lowest to the highest interval.
 
 # Throws
-- `ArgumentError` if `length(breaks) < 2`, `breaks` is not sorted, or no palette is
-  given.
+- `ArgumentError`: if `breaks` is invalid, no palette is given, or a scheme name is
+    unknown.
 
-# Example
-```julia
-using .Constructors, CairoMakie, ColorSchemes
+See also [`fnames_modele`](@ref).
 
-# Diverging anomaly palette: 2 blues | white around 0 | 2 reds  (5 intervals)
-breaks = [-2.0, -1.0, -0.5, 0.5, 1.0, 2.0]
-pal = compose_palette(breaks;
-                      palette1 = reverse(colorschemes[:Blues]),
-                      midcolor = :white,
-                      palette2 = :Reds,
-                      demarcation = 0.0)
-length(pal) == length(breaks) - 1        # true
+# Examples
+```jldoctest
+julia> pal = compose_palette(
+           [-2, -1, -0.5, 0.5, 1, 2];
+           palette1=reverse(colorschemes[:Blues]),
+           midcolor=:white,
+           palette2=:Reds,
+           demarcation=0,
+       );
 
-x = range(-3, 3; length = 200)
-z = [sin(a) * cos(b) * 2 for a in x, b in x]
-fig, ax, cf = contourf(x, x, z; levels = breaks, colormap = pal,
-                       extendlow = :auto, extendhigh = :auto)
-Colorbar(fig[1, 2], cf)
-fig
-
-# Sequential palette with a white top class
-compose_palette(0:10:100; palette1 = :viridis, midcolor = :white)   # 10 colors
+julia> length(pal), pal[3] == Makie.to_color(:white)
+(5, true)
 ```
 """
-function compose_palette(breaks; palette1 = nothing, midcolor = nothing,
-        palette2 = nothing, demarcation = nothing)
-
+function compose_palette(
+    breaks::AbstractVector{<:Real};
+    palette1=nothing,
+    midcolor=nothing,
+    palette2=nothing,
+    demarcation::Union{Real,Nothing}=1.0,
+)
     n = length(breaks)
-    n >= 2 || throw(ArgumentError(
-        "compose_palette: number of breaks must be ≥ 2, got $n"))
-    issorted(breaks) || throw(ArgumentError(
-        "compose_palette: breaks must be sorted in non-decreasing order"))
-    (palette1 === nothing && palette2 === nothing) && throw(ArgumentError(
-        "compose_palette: at least one of palette1, palette2 must be given"))
+    n >= 2 || throw(ArgumentError("compose_palette: need ≥ 2 breaks, got $n"))
+    if !(all(isfinite, breaks) && all(i -> breaks[i] < breaks[i + 1], 1:(n - 1)))
+        msg = "compose_palette: breaks must be finite and strictly increasing"
+        throw(ArgumentError(msg))
+    end
+    if palette1 === nothing && palette2 === nothing
+        msg = "compose_palette: at least one of palette1, palette2 must be given"
+        throw(ArgumentError(msg))
+    end
 
-    d    = demarcation === nothing ? 1.0 : demarcation
-    nint = n - 1                       # number of colors to return
+    d = demarcation === nothing ? 1.0 : demarcation
+    nint = n - 1  # Number of colors to return.
     hasmid = midcolor !== nothing
 
     if palette1 !== nothing && palette2 !== nothing
-        k     = count(<=(d), breaks)
-        nlow  = max(k - 1, 0)
-        strad = 1 <= k <= n - 1        # interval crossing the demarcation exists
+        k = count(<=(d), breaks)
+        nlow = max(k - 1, 0)
+        strad = 1 <= k <= n - 1  # An interval crossing the demarcation exists.
         if hasmid && !strad
-            @warn "compose_palette: no interval straddles demarcation = $d; midcolor is not used"
+            @warn "compose_palette: no interval straddles demarcation = $d; " *
+                "midcolor is not used"
         end
-        nmid  = (hasmid && strad) ? 1 : 0
+        nmid = hasmid && strad ? 1 : 0
         nhigh = nint - nlow - nmid
     elseif palette1 !== nothing
-        nmid  = hasmid ? 1 : 0
+        nmid = hasmid ? 1 : 0
         nlow, nhigh = nint - nmid, 0
     else
-        nmid  = hasmid ? 1 : 0
+        nmid = hasmid ? 1 : 0
         nlow, nhigh = 0, nint - nmid
     end
 
     pal = Makie.RGBAf[]
+    sizehint!(pal, nint)
     append!(pal, _sample(palette1, nlow))
     nmid == 1 && push!(pal, Makie.to_color(midcolor))
     append!(pal, _sample(palette2, nhigh))
 
     @assert length(pal) == nint
     return pal
-end # compose_palette
+end
 
 end # module Constructors
