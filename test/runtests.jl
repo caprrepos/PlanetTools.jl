@@ -9,6 +9,8 @@ using PlanetTools
 using PlanetTools.Constructors
 using PlanetTools.DerivePhysicsVariablesModelE
 using PlanetTools.PlanetAerosolUtils
+using PlanetTools.PlanetDustUtils
+using SpecialFunctions: erf
 using Test
 
 @testset "PlanetTools" begin
@@ -24,10 +26,14 @@ using Test
         include("planetaerosolutils_tests.jl")
     end
 
+    @testset "PlanetDustUtils" begin
+        include("planetdustutils_tests.jl")
+    end
+
     @testset "Doctests" begin
         setup = quote
             using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariablesModelE
-            using PlanetTools.PlanetAerosolUtils
+            using PlanetTools.PlanetAerosolUtils, PlanetTools.PlanetDustUtils
             using ColorSchemes, Makie
         end
         DocMeta.setdocmeta!(PlanetTools, :DocTestSetup, setup; recursive=true)

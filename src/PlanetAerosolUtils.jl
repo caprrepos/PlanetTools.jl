@@ -26,6 +26,9 @@ For spherical particles this equals the area-weighted mean radius
 representative radius per bin. That radius should be the bin's own effective radius;
 other choices (e.g. the geometric mean) only approximate it.
 
+Pass **radii**, not diameters: size bins defined by diameter bounds (as in ModelE) must
+be converted first, e.g. `radius = sqrt.(dlow .* dhigh) ./ 2` for the geometric mean.
+
 Units cancel except for `radius`: the result has the units of `radius`, as long as `mass`
 and `density` each use one unit for all bins.
 
