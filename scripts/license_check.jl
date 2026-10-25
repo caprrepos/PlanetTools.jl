@@ -96,6 +96,10 @@ const REVIEWED = Dict(
         "CRlibm library LGPL per CRlibm.jl README (binary ships GPL-2.0 text); via Makie",
     ),
     "CRlibm" => ("permissive", "wrapper MIT; wrapped CRlibm library LGPL"),
+    "CommonMark" => (
+        "permissive",
+        "code MIT and BSD-2-Clause; CC-BY-SA-4.0 only for the test spec.txt",
+    ),
     "FreeType2_jll → FreeType2 binary" => ("permissive", "dual FTL or GPL-2.0; use FTL"),
     "Zstd_jll → Zstd binary" => ("permissive", "dual BSD-3-Clause or GPL-2.0; use BSD"),
     "XZ_jll → XZ binary" => ("permissive", "liblzma 0BSD; GPL only for helper scripts"),
