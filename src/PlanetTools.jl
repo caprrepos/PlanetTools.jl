@@ -7,6 +7,6 @@ include("PlanetDustUtils.jl")
 include("PlanetStatistics.jl")
 include("PlottingTools.jl")
 include("ReadWritePlanet.jl")
-#include("StatisticUtils.jl")
+include("StatisticUtils.jl")
 
 end # module PlanetTools

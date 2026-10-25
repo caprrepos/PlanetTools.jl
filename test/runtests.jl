@@ -16,6 +16,7 @@ using PlanetTools.PlanetStatistics
 using PlanetTools.PlanetStatistics: PlanetStatistics
 using PlanetTools.PlottingTools
 using PlanetTools.ReadWritePlanet
+using PlanetTools.StatisticUtils
 using Random: MersenneTwister
 using SpecialFunctions: erf
 using Test
@@ -49,12 +50,16 @@ using Test
         include("readwriteplanet_tests.jl")
     end
 
+    @testset "StatisticUtils" begin
+        include("statisticutils_tests.jl")
+    end
+
     @testset "Doctests" begin
         setup = quote
             using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariablesModelE
             using PlanetTools.PlanetAerosolUtils, PlanetTools.PlanetDustUtils
             using PlanetTools.PlanetStatistics, PlanetTools.PlottingTools
-            using PlanetTools.ReadWritePlanet
+            using PlanetTools.ReadWritePlanet, PlanetTools.StatisticUtils
             using ColorSchemes, Dates, Makie
         end
         DocMeta.setdocmeta!(PlanetTools, :DocTestSetup, setup; recursive=true)
