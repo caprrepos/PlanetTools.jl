@@ -34,7 +34,9 @@ makedocs(;
     modules=[PlanetTools],
     authors="Jan P. Perlwitz <jan.p.perlwitz@caprllc.com>",
     sitename="PlanetTools.jl",
-    format=Documenter.HTML(; prettyurls=get(ENV, "CI", "false") == "true", edit_link="main"),
+    format=Documenter.HTML(;
+        prettyurls=get(ENV, "CI", "false") == "true", edit_link="main"
+    ),
     pages=["Home" => "index.md", "API" => ["api/$m.md" for m in SUBMODULES]],
 )
 
