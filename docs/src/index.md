@@ -1,14 +1,16 @@
-```@meta
-CurrentModule = PlanetTools
+# PlanetTools.jl
+
+```@docs
+PlanetTools
 ```
 
-# PlanetTools
+## Installation
 
-Documentation for [PlanetTools](https://github.com/caprrepos/PlanetTools.jl).
-
-```@index
+```julia
+using Pkg
+Pkg.add(url="https://github.com/caprrepos/PlanetTools.jl")
 ```
 
-```@autodocs
-Modules = [PlanetTools]
-```
+PlanetTools requires Julia 1.13 or later. The plotting methods `compose_palette` and
+`finite_contour!` additionally require Makie or one of its backends, e.g.
+`Pkg.add("CairoMakie")`.

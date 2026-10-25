@@ -85,21 +85,18 @@ jobs:
       actions: write # needed to allow julia-actions/cache to proactively delete old caches that it has created
       contents: write
       statuses: write
+    env:
+      # Work around the "Unknown package" error of Pkg in Julia 1.13.2 (Pkg.jl issue #4866).
+      JULIA_PKG_PRECOMPILE_AUTO: 0
     steps:
       - uses: actions/checkout@v6
       - uses: julia-actions/setup-julia@v3
         with:
-          version: '1'
+          version: '1.13'
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
+      # Runs docs/make.jl, which also runs all doctests (with Makie loaded for the extension).
       - uses: julia-actions/julia-docdeploy@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-      - name: Run doctests
-        shell: julia --project=docs --color=yes {0}
-        run: |
-          using Documenter: DocMeta, doctest
-          using PlanetTools
-          DocMeta.setdocmeta!(PlanetTools, :DocTestSetup, :(using PlanetTools); recursive=true)
-          doctest(PlanetTools)

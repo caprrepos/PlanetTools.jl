@@ -1,2 +1,13 @@
 [deps]
+ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+PlanetTools = "6e134580-676a-4416-8bb0-db5b9bd9bc08"
+
+[sources]
+PlanetTools = {path = ".."}
+
+[compat]
+Documenter = "1"
+julia = "1.13"
