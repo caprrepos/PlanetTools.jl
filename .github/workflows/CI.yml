@@ -23,8 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.11'
-          - '1.13'
+          - '1.13' # Minimum supported version (julia compat in Project.toml).
           - 'pre'
         os:
           - ubuntu-latest
@@ -63,7 +62,9 @@ jobs:
       - uses: actions/checkout@v6
       - uses: julia-actions/setup-julia@v3
         with:
-          version: '1'
+          # Pinned so that the inventory matches the committed THIRD_PARTY_LICENSES.md;
+          # raise together with the julia compat and regenerate that file.
+          version: '1.13'
       - uses: julia-actions/cache@v2
       # Fails if a dependency has a license that is neither clearly permissive nor
       # reviewed in scripts/license_check.jl.

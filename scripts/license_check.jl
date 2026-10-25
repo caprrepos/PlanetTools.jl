@@ -16,6 +16,11 @@
 # LICENSE_CHECK_PLATFORM to its triplet; its artifacts are then downloaded, e.g.
 #     LICENSE_CHECK_PLATFORM=aarch64-apple-darwin julia scripts/license_check.jl out.md
 
+# No precompilation is needed to read license files. Disabling Pkg's automatic
+# precompilation also avoids the "Unknown package" failure of `Pkg.add` in Julia 1.13.2
+# (Pkg.jl issue #4866).
+ENV["JULIA_PKG_PRECOMPILE_AUTO"] = "0"
+
 using Pkg
 
 const ROOT = dirname(@__DIR__)
@@ -127,6 +132,10 @@ const REVIEWED = Dict(
     "MicrosoftMPI_jll → MicrosoftMPI binary" => (
         "proprietary, redistributable",
         "Microsoft MPI Redistributable EULA; Windows only; via NCDatasets → NetCDF → HDF5",
+    ),
+    "aws_c_cal_jll → aws_c_cal binary" => (
+        "permissive",
+        "Apache-2.0 per upstream awslabs/aws-c-cal LICENSE and NOTICE; via HDF5 ≥ 2",
     ),
     "Git_jll → Git binary" => ("strong copyleft", "GPL-2.0; test only (Documenter)"),
     "OpenSSH_jll → OpenSSH binary" => ("permissive", "BSD-style; test only"),
