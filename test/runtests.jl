@@ -6,6 +6,7 @@ using Dates: Date, Month, Year, daysinmonth, month, year
 using Documenter: DocMeta, doctest
 using Logging: Logging
 using Makie: Makie
+using NCDatasets: NCDatasets, NCDataset
 using PlanetTools
 using PlanetTools.Constructors
 using PlanetTools.DerivePhysicsVariablesModelE
@@ -14,6 +15,7 @@ using PlanetTools.PlanetDustUtils
 using PlanetTools.PlanetStatistics
 using PlanetTools.PlanetStatistics: PlanetStatistics
 using PlanetTools.PlottingTools
+using PlanetTools.ReadWritePlanet
 using Random: MersenneTwister
 using SpecialFunctions: erf
 using Test
@@ -43,11 +45,16 @@ using Test
         include("plottingtools_tests.jl")
     end
 
+    @testset "ReadWritePlanet" begin
+        include("readwriteplanet_tests.jl")
+    end
+
     @testset "Doctests" begin
         setup = quote
             using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariablesModelE
             using PlanetTools.PlanetAerosolUtils, PlanetTools.PlanetDustUtils
             using PlanetTools.PlanetStatistics, PlanetTools.PlottingTools
+            using PlanetTools.ReadWritePlanet
             using ColorSchemes, Dates, Makie
         end
         DocMeta.setdocmeta!(PlanetTools, :DocTestSetup, setup; recursive=true)

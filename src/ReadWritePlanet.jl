@@ -1,46 +1,77 @@
+## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
+##   used from 2026-10-24 to 2026-10-24
+
+"""
+    PlanetTools.ReadWritePlanet
+
+Submodule of PlanetTools for reading and writing NetCDF files of planetary model output
+with NCDatasets.jl: [`writenetcdf`](@ref) writes variables with coordinates and metadata,
+[`readnetcdf`](@ref) reads selected variables and their metadata. Load it with
+`using PlanetTools.ReadWritePlanet`.
+"""
 module ReadWritePlanet
+
+using NCDatasets: NCDataset, defDim, defVar, dimnames, name
+using OrderedCollections: OrderedDict
 
 export readnetcdf, writenetcdf
 
-using DataStructures, NCDatasets
+# Maximum number of dimensions with coordinate keywords `datadimN` / `dimNattr`.
+const MAX_COORDS = 6
 
-# --- Internal Dispatch Functions ---
+"""
+    writenetcdf(path; kwargs...) -> Nothing
 
-# Specific case to resolve ambiguity: when both are nothing
-function _get_ndatadims(::Nothing, ::Nothing)
-    return 0
-end
+Write one or several variables, their coordinates, and metadata to the NetCDF file `path`.
 
-# Case 1: No data provided, but names might exist
-function _get_ndatadims(::Nothing, names::Any)
-    return 0
-end
+Dimension `i` is named `dimnames[i]` (default `"dimension<i>"`). If a coordinate
+`datadim<i>` is given, the dimension gets its length and a coordinate variable of the same
+name; a dimension named `"time"` is unlimited. Dimensions without coordinates are created
+from the size of the data. Existing dimensions and variables (e.g. with `mode="a"`) are
+kept; a variable that already exists is not overwritten.
 
-# Case 2: Data provided but no names
-function _get_ndatadims(data::Any, ::Nothing)
-    return ndims(data)
-end
+# Keywords
+- `data=nothing`: a scalar, an array for one variable, or for several variables an array
+    whose first dimension indexes `names`, `[Var, Lon, Lat, …]`.
+- `names=nothing`: variable name (`AbstractString`) or vector of names.
+- `dimnames=nothing`: dimension names of the variables (without the `Var` dimension).
+- `datadim1`, …, `datadim6`: coordinates of dimensions 1 to 6; `dim1attr`, …, `dim6attr`:
+    their attributes (e.g. `Dict("units" => "degrees_east")`).
+- `dataattr=nothing`: attributes of the variable, or a vector with one dictionary per name.
+- `vtype=nothing`: element type to convert `data` and `axypvar` to, e.g. `Float32`.
+- `datevar=nothing`: dates written as strings to variable `"Dates"` along the `"time"`
+    dimension (or the last dimension); `datevarattr`: its attributes.
+- `axypvar=nothing`: cell areas `(Lon, Lat)` (or `(Lat,)`) written to variable `"axyp"` on
+    the first two dimensions (default `"lon"`, `"lat"`); `axypvarattr`: its attributes.
+- `globalattr=nothing`: global attributes, any collection of name–value pairs.
+- `mode::AbstractString="c"`: `"c"` creates (overwrites) the file, `"a"` appends.
+- `format::Symbol=:netcdf4`: file format, see `NCDatasets.NCDataset`.
 
-# Case 3: Multiple variables packed into one array [Var, Lon, Lat, ...]
-function _get_ndatadims(data::AbstractArray, names::Vector{String})
-    return ndims(data) - 1
-end
+# Throws
+- `ArgumentError`: if the sizes of `data`, `names`, `dimnames`, the coordinates, or
+    `dataattr` do not agree. The inputs are checked before the file is opened.
 
-# Case 4: A single variable array [Lon, Lat, ...]
-function _get_ndatadims(data::AbstractArray, names::String)
-    return ndims(data)
-end
+See also [`readnetcdf`](@ref).
 
-# Case 5: Scalars (Int, Float, etc.)
-function _get_ndatadims(data::Number, names::String)
-    return 0
-end
+# Examples
+```jldoctest
+julia> path = joinpath(mktempdir(), "example.nc");
 
-# --- Main Writing Function ---
+julia> u = reshape(Float32.(1:6), 3, 2);  # (lon, lat)
 
+julia> writenetcdf(path; data=u, names="u", dimnames=["lon", "lat"],
+           datadim1=[0.0, 120.0, 240.0], datadim2=[-45.0, 45.0],
+           dataattr=Dict("units" => "m s-1"), globalattr=Dict("title" => "test"));
+
+julia> r = readnetcdf(path, ["u"]);
+
+julia> r.variable_data["u"] == u, r.variable_info["u"]["dimensions"]
+(true, ("lon", "lat"))
+```
+"""
 function writenetcdf(
-    path;
-    mode="c",
+    path::AbstractString;
+    mode::AbstractString="c",
     format::Symbol=:netcdf4,
     data=nothing,
     vtype=nothing,
@@ -65,172 +96,202 @@ function writenetcdf(
     axypvarattr=nothing,
     globalattr=nothing,
 )
+    coords = (datadim1, datadim2, datadim3, datadim4, datadim5, datadim6)
+    coordattrs = (dim1attr, dim2attr, dim3attr, dim4attr, dim5attr, dim6attr)
+    multi = names isa AbstractVector
+    nvdims = _nvardims(data, multi)
+    if dimnames === nothing && nvdims > 0
+        dimnames = ["dimension$i" for i in 1:nvdims]
+    end
+    _check_write_inputs(data, names, multi, nvdims, dimnames, coords, dataattr)
 
-    # 1. Determine number of dimensions
-    ndatadims = _get_ndatadims(data, names)
-
-    # 2. Auto-generate generic dimension names if missing
-    if dimnames === nothing && ndatadims > 0
-        dimnames = "dimension" .* string.(1:ndatadims)
+    if vtype !== nothing
+        data = data === nothing ? nothing : _convert(vtype, data)
+        axypvar = axypvar === nothing ? nothing : _convert(vtype, axypvar)
     end
 
-    # 3. Define helper for dimension creation
-    function defineDimNc(ds, dimname, datadim; dimattr=nothing)
-        if !haskey(ds, dimname)
-            # Use Inf for time, else the actual length of the coordinate array
-            d_len = (dimname == "time") ? Inf : length(datadim)
-            defDim(ds, dimname, d_len)
-
-            if dimattr != nothing
-                defVar(ds, dimname, datadim, (dimname,); attrib=dimattr)
-            else
-                defVar(ds, dimname, datadim, (dimname,))
+    NCDataset(path, mode; format=format) do ds
+        if dimnames !== nothing
+            for (i, dname) in enumerate(dimnames)
+                i <= MAX_COORDS && coords[i] !== nothing || continue
+                _define_coordinate!(ds, dname, coords[i], coordattrs[i])
             end
         end
 
-        return nothing
-    end
-
-    NCDataset(path, mode; format=format, attrib=[]) do ds
-        # --- A. Define Dimensions ---
-        if dimnames != nothing
-            for n in eachindex(dimnames)
-                if n === 1 && datadim1 != nothing
-                    defineDimNc(ds, dimnames[n], datadim1; dimattr=dim1attr)
-                elseif n === 2 && datadim2 != nothing
-                    defineDimNc(ds, dimnames[n], datadim2; dimattr=dim2attr)
-                elseif n === 3 && datadim3 != nothing
-                    defineDimNc(ds, dimnames[n], datadim3; dimattr=dim3attr)
-                elseif n === 4 && datadim4 != nothing
-                    defineDimNc(ds, dimnames[n], datadim4; dimattr=dim4attr)
-                elseif n === 5 && datadim5 != nothing
-                    defineDimNc(ds, dimnames[n], datadim5; dimattr=dim5attr)
-                elseif n === 6 && datadim6 != nothing
-                    defineDimNc(ds, dimnames[n], datadim6; dimattr=dim6attr)
-                end
-            end
-        end
-
-        # --- B. Standardize Types ---
-        if vtype != nothing
-            if axypvar != nothing
-                axypvar = convert.(vtype, axypvar)
-            end
-            if data != nothing
-                data = convert.(vtype, data)
-            end
-        end
-
-        # --- C. Write Main Variables (Scalars & Arrays) ---
-        if names != nothing
-            # NetCDF requires a Tuple for dims; () signifies a scalar
+        if names !== nothing
             vdims = dimnames === nothing ? () : Tuple(dimnames)
-
-            if names isa Vector
-                for n in eachindex(names)
-                    if !haskey(ds, names[n])
-                        attr = (dataattr != nothing) ? dataattr[n] : []
-                        # Robust slicing: pulls the n-th variable slice
-                        vdata = (ndims(data) > length(vdims)) ? selectdim(data, 1, n) : data
-                        defVar(ds, names[n], vdata, vdims; attrib=attr)
-                    end
+            for (n, vname) in enumerate(multi ? names : (names,))
+                haskey(ds, vname) && continue
+                vdata = multi ? selectdim(data, 1, n) : data
+                attr = if multi
+                    _attr(dataattr === nothing ? nothing : dataattr[n])
+                else
+                    _attr(dataattr)
                 end
-            else
-                # Single variable or scalar (e.g., LS1, Ptop)
-                if !haskey(ds, names)
-                    attr = (dataattr != nothing) ? dataattr : []
-                    defVar(ds, names, data, vdims; attrib=attr)
-                end
+                defVar(ds, vname, vdata, vdims; attrib=attr)
             end
         end
 
-        # --- D. Write Support Variables ---
-        if datevar != nothing && !haskey(ds, "Dates")
-            attr = (datevarattr === nothing) ? [] : datevarattr
-            defVar(ds, "Dates", string.(datevar), ("time",); attrib=attr)
+        if datevar !== nothing && !haskey(ds, "Dates")
+            tdim = haskey(ds.dim, "time") || dimnames === nothing ? "time" : last(dimnames)
+            defVar(ds, "Dates", string.(datevar), (tdim,); attrib=_attr(datevarattr))
         end
 
-        if axypvar != nothing && !haskey(ds, "axyp")
-            axyp_dims =
-                ndims(axypvar) == 2 ? ("lon", "lat") : (ndims(axypvar) == 1 ? ("lat",) : ())
-            attr = (axypvarattr === nothing) ? [] : axypvarattr
-            defVar(ds, "axyp", axypvar, axyp_dims; attrib=attr)
+        if axypvar !== nothing && !haskey(ds, "axyp")
+            horiz = if dimnames === nothing || length(dimnames) < 2
+                ("lon", "lat")
+            else
+                (dimnames[1], dimnames[2])
+            end
+            adims = if ndims(axypvar) == 2
+                horiz
+            elseif ndims(axypvar) == 1
+                (horiz[2],)
+            else
+                ()
+            end
+            defVar(ds, "axyp", axypvar, adims; attrib=_attr(axypvarattr))
         end
 
-        # --- E. Attach Global Metadata ---
-        if globalattr != nothing
+        if globalattr !== nothing
             for (key, value) in globalattr
-                ds.attrib[key] = value
+                ds.attrib[String(key)] = value
             end
         end
     end
-
     return nothing
-end # writenetcdf
+end
 
 """
-readnetcdf(filepath::AbstractString, var_names::Vector{String})
+    readnetcdf(filepath, var_names; missing_as_nan=false) -> NamedTuple
 
-Reads a NetCDF file, extracts metadata and loads data for multiple pre-selected variables
-into Julia arrays.
+Read the global attributes and the selected variables of a NetCDF file, with their metadata.
+Values are read as NCDatasets returns them: scale factors and offsets are applied, and
+values equal to `_FillValue` become `missing`. Requested variables that do not exist are
+skipped with a warning.
 
 # Arguments
-- `filepath::AbstractString`: The full path to the NetCDF file.
-- `var_names::Vector{String}`: A list of variable names to process and read.
-    (e.g., ["tau_ext_aer", "ssa_aer", "g_aer"])
+- `filepath::AbstractString`: path of the NetCDF file.
+- `var_names::AbstractVector{<:AbstractString}`: names of the variables to read.
+
+# Keywords
+- `missing_as_nan::Bool=false`: return floating-point data with `NaN` instead of
+    `missing` (element type without `Missing`), as expected by PlanetTools' statistics.
 
 # Returns
-- A NamedTuple containing:
-    - `global_attributes::OrderedDict{String, Any}`: Global attributes of the file.
-    - `variable_info::OrderedDict{String, Any}`: Metadata for each requested variable.
-    - `variable_data::OrderedDict{String, Any}`: The data for each requested variable
-      as a Julia Array.
+- `NamedTuple` with fields
+    - `global_attributes::OrderedDict{String,Any}`: global attributes;
+    - `variable_info::OrderedDict{String,Any}`: per variable, a dictionary with `"name"`,
+        `"dimensions"` (tuple of names), `"dimension_sizes"`, and `"attributes"`;
+    - `variable_data::OrderedDict{String,Any}`: per variable, its data as an `Array`.
+
+See also [`writenetcdf`](@ref).
+
+# Examples
+```jldoctest
+julia> path = joinpath(mktempdir(), "example.nc");
+
+julia> x = [1.0 NaN; 3.0 4.0];
+
+julia> writenetcdf(path; data=x, names="x", dataattr=Dict("_FillValue" => -999.0));
+
+julia> eltype(readnetcdf(path, ["x"]).variable_data["x"])
+Union{Missing, Float64}
+
+julia> isnan(readnetcdf(path, ["x"]; missing_as_nan=true).variable_data["x"][1, 2])
+true
+```
 """
-function readnetcdf(filepath::AbstractString, var_names::Vector{String})
-    # Use the NCDatasets.jl 'do' block for safe, automatic file closing
-    NCDataset(filepath, "r") do ds
-
-        # 1. Read Global Attributes
-        global_attributes = OrderedDict(String(k) => v for (k, v) in ds.attrib)
-
-        # Initialize dictionaries to hold variable info and data
+function readnetcdf(
+    filepath::AbstractString,
+    var_names::AbstractVector{<:AbstractString};
+    missing_as_nan::Bool=false,
+)
+    return NCDataset(filepath, "r") do ds
+        global_attributes = OrderedDict{String,Any}(String(k) => v for (k, v) in ds.attrib)
         variable_info = OrderedDict{String,Any}()
         variable_data = OrderedDict{String,Any}()
+        for vname in var_names
+            if !haskey(ds, vname)
+                @warn "Variable '$vname' not found in file: $filepath"
+                continue
+            end
+            var = ds[vname]
+            variable_info[vname] = OrderedDict{String,Any}(
+                "name" => String(name(var)),
+                "dimensions" => dimnames(var),
+                "dimension_sizes" => size(var),
+                "attributes" =>
+                    OrderedDict{String,Any}(String(k) => v for (k, v) in var.attrib),
+            )
+            x = Array(var)
+            variable_data[vname] = missing_as_nan ? _missing_to_nan(x) : x
+        end
+        return (; global_attributes, variable_info, variable_data)
+    end
+end
 
-        # 2. Process Pre-Selected Variables
-        for var_name in var_names
-            if haskey(ds, var_name)
-                # Access the variable handler (CFVariable)
-                var = ds[var_name]
+# --- Internal helpers ---
 
-                # Extract metadata
-                info = Dict{String,Any}(
-                    "name" => String(name(var)),
-                    "dimensions" => dimnames(var), # Tuple of dimension names
-                    "dimension_sizes" => size(var),   # Tuple of dimension sizes
-                    "attributes" => OrderedDict(String(k) => v for (k, v) in var.attrib),
-                )
+# Number of dimensions of each variable in `data`.
+_nvardims(::Nothing, multi) = 0
+_nvardims(::Number, multi) = 0
+_nvardims(data::AbstractArray, multi) = multi ? ndims(data) - 1 : ndims(data)
 
-                # 3. Read variable data into a Julia Array
-                # The Array operator reads the entire variable data into memory with the same
-                # dimensions as in the file
-                data_array = Array(var)
-
-                # Store the results
-                variable_info[var_name] = info
-                variable_data[var_name] = data_array
-            else
-                @warn "Variable '$var_name' not found in file: $filepath"
+function _check_write_inputs(data, names, multi, nvdims, dimnames, coords, dataattr)
+    if names !== nothing && data === nothing
+        throw(ArgumentError("names given without data"))
+    end
+    if multi
+        data isa AbstractArray || throw(ArgumentError("several names need an array"))
+        if size(data, 1) != length(names)
+            msg = "size(data, 1) = $(size(data, 1)) but there are $(length(names)) names"
+            throw(ArgumentError(msg))
+        end
+        if dataattr !== nothing && length(dataattr) != length(names)
+            throw(ArgumentError("dataattr must have one entry per name"))
+        end
+    end
+    if dimnames !== nothing && names !== nothing && length(dimnames) != nvdims
+        msg = "$(length(dimnames)) dimnames for variables with $nvdims dimensions"
+        throw(ArgumentError(msg))
+    end
+    n = dimnames === nothing ? 0 : length(dimnames)
+    for i in 1:min(n, MAX_COORDS)
+        c = coords[i]
+        if c !== nothing && data isa AbstractArray && names !== nothing
+            len = size(data, multi ? i + 1 : i)
+            if length(c) != len
+                msg = "datadim$i has length $(length(c)), data dimension $i has size $len"
+                throw(ArgumentError(msg))
             end
         end
-
-        # Return the results as a NamedTuple
-        return (
-            global_attributes=global_attributes,
-            variable_info=variable_info,
-            variable_data=variable_data,
-        )
     end
-end # readnetcdf
+    return nothing
+end
+
+# Define dimension `dname` and its coordinate variable, unless they exist.
+function _define_coordinate!(ds, dname, coord, attr)
+    if !haskey(ds.dim, dname)
+        defDim(ds, dname, dname == "time" ? Inf : length(coord))
+    end
+    if !haskey(ds, dname)
+        defVar(ds, dname, coord, (dname,); attrib=_attr(attr))
+    end
+    return nothing
+end
+
+_attr(::Nothing) = Pair{String,Any}[]
+_attr(a) = a
+
+_convert(::Type{T}, x::Number) where {T} = convert(T, x)
+function _convert(::Type{T}, x::AbstractArray) where {T}
+    return map(v -> v === missing ? missing : convert(T, v), x)
+end
+
+_missing_to_nan(x) = x
+function _missing_to_nan(x::AbstractArray{Union{Missing,T}}) where {T<:AbstractFloat}
+    return T[ismissing(v) ? T(NaN) : v for v in x]
+end
 
 end # module ReadWritePlanet
