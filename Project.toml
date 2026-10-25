@@ -4,15 +4,20 @@ authors = ["Jan P. Perlwitz <jan.p.perlwitz@caprllc.com>"]
 version = "0.1.0"
 
 [deps]
-ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
-Contour = "d38c429a-6771-53c6-b99e-75d170b6e991"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
-Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
 OrderedCollections = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+
+[weakdeps]
+ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
+Contour = "d38c429a-6771-53c6-b99e-75d170b6e991"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
+
+[extensions]
+PlanetToolsMakieExt = ["ColorSchemes", "Contour", "Makie"]
 
 [compat]
 BenchmarkTools = "1"
@@ -25,14 +30,26 @@ NCDatasets = "0.14"
 OrderedCollections = "1, 2"
 QuadGK = "2"
 SpecialFunctions = "2"
-julia = "1.10"
+julia = "1.11"
 
 [extras]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+ColorSchemes = "35d6a980-a343-548e-a6ea-1d62b119f2f4"
+Contour = "d38c429a-6771-53c6-b99e-75d170b6e991"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["BenchmarkTools", "Documenter", "Logging", "Random", "Test"]
+test = [
+    "BenchmarkTools",
+    "ColorSchemes",
+    "Contour",
+    "Documenter",
+    "Logging",
+    "Makie",
+    "Random",
+    "Test",
+]

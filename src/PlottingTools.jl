@@ -1,17 +1,15 @@
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-04 to 2026-10-24
+##   used from 2026-10-04 to 2026-10-25
 
 """
     PlanetTools.PlottingTools
 
 Submodule of PlanetTools with plotting helpers for Makie (including GeoMakie axes):
 [`finite_contour!`](@ref) draws isolines of fields with missing data. Load it with
-`using PlanetTools.PlottingTools`.
+`using PlanetTools.PlottingTools`. The methods are defined in a package extension that is
+loaded once Makie is loaded (`using Makie`, `using CairoMakie`, …).
 """
 module PlottingTools
-
-using Contour: Contour
-using Makie: cgrad, lines!
 
 export finite_contour!
 
@@ -19,7 +17,7 @@ export finite_contour!
     finite_contour!(ax, x, y, z[, levels]; kwargs...) -> NamedTuple
 
 Draw isolines of `z(x, y)` on the Makie axis `ax` (e.g. an `Axis` or a GeoMakie `GeoAxis`),
-robustly for fields with missing data (`NaN`).
+robustly for fields with missing data (`NaN`). Requires Makie to be loaded.
 
 The isolines of each level are traced with Contour.jl (marching squares); vertices with
 non-finite coordinates, which arise next to `NaN` cells, become gaps, and segments with
@@ -72,103 +70,20 @@ julia> finite_contour!(ax, x, y, z, [2.5, 0.5]; color=[:red, :blue], linewidth=2
 (levels = [0.5, 2.5], nsegments = [1, 1])
 ```
 """
-function finite_contour!(
-    ax,
-    x::AbstractVector,
-    y::AbstractVector,
-    z::AbstractMatrix{<:Real};
-    levels=5,
-    color=nothing,
-    colormap=:viridis,
-    colorrange=nothing,
-    zrange=nothing,
-    minpoints::Integer=2,
-    kwargs...,
-)
-    if size(z) != (length(x), length(y))
-        nx, ny = length(x), length(y)
-        msg = "size(z) = $(size(z)) but (length(x), length(y)) = ($nx, $ny)"
-        throw(DimensionMismatch(msg))
-    end
-    minpoints >= 1 || throw(ArgumentError("minpoints must be ≥ 1, got $minpoints"))
-    levs, order, nuser = _resolve_levels(levels, z, zrange)
-    colors = _level_colors(color, colormap, colorrange, levs, order, nuser)
-    nseg = zeros(Int, length(levs))
+function finite_contour! end
 
-    for (il, lev) in pairs(levs)
-        xs, ys = Float64[], Float64[]
-        for line in Contour.lines(Contour.contour(x, y, z, lev))
-            lx, ly = Contour.coordinates(line)
-            good = isfinite.(lx) .& isfinite.(ly)
-            count(good) < minpoints && continue
-            append!(xs, ifelse.(good, lx, NaN), (NaN,))
-            append!(ys, ifelse.(good, ly, NaN), (NaN,))
-            nseg[il] += 1
+# Hint for calls before the Makie extension is loaded.
+function __init__()
+    Base.Experimental.register_error_hint(MethodError) do io, exc, _, _
+        ext = Base.get_extension(parentmodule(@__MODULE__), :PlanetToolsMakieExt)
+        if exc.f === finite_contour! && ext === nothing
+            print(
+                io, "\n`finite_contour!` is defined in the Makie extension of PlanetTools: "
+            )
+            print(io, "run `using Makie` (or CairoMakie, GLMakie) first.")
         end
-        nseg[il] > 0 && lines!(ax, xs, ys; color=colors[il], kwargs...)
     end
-    return (; levels=levs, nsegments=nseg)
-end
-
-function finite_contour!(
-    ax, x::AbstractVector, y::AbstractVector, z::AbstractMatrix{<:Real}, levels; kwargs...
-)
-    return finite_contour!(ax, x, y, z; kwargs..., levels=levels)  # Positional wins.
-end
-
-# Sorted unique levels, the index of each into the levels as given (for per-level colors),
-# and the number of levels as given.
-function _resolve_levels(n::Integer, z, zrange)
-    n >= 1 || throw(ArgumentError("number of automatic levels must be ≥ 1, got $n"))
-    lo, hi = zrange === nothing ? _finite_extrema(z) : _checked_range(zrange, "zrange")
-    hi > lo || return Float64[], Int[], n  # Nothing to contour.
-    return collect(range(lo, hi; length=n + 2))[2:(end - 1)], collect(1:n), n
-end
-
-function _resolve_levels(levels::AbstractVector{<:Real}, z, zrange)
-    all(isfinite, levels) || throw(ArgumentError("levels must be finite"))
-    order = sortperm(levels)
-    unique!(i -> levels[i], order)  # Keep the first of equal levels.
-    return Float64.(levels[order]), order, length(levels)
-end
-
-_resolve_levels(level::Real, z, zrange) = _resolve_levels([level], z, zrange)
-
-function _finite_extrema(z)
-    any(isfinite, z) || return (NaN, NaN)
-    lo, hi = extrema(Iterators.filter(isfinite, z))
-    return Float64(lo), Float64(hi)
-end
-
-function _checked_range(r, name)
-    if !(length(r) == 2 && all(isfinite, r) && r[1] <= r[2])
-        throw(ArgumentError("$name must be finite (low, high) with low ≤ high"))
-    end
-    return Float64(r[1]), Float64(r[2])
-end
-
-# One color per resolved level.
-function _level_colors(color, colormap, colorrange, levs, order, nuser)
-    if color === nothing
-        isempty(levs) && return []
-        cg = cgrad(colormap)
-        lo, hi = if colorrange === nothing
-            extrema(levs)
-        else
-            _checked_range(colorrange, "colorrange")
-        end
-        return [
-            hi > lo ? get(cg, clamp((v - lo) / (hi - lo), 0, 1)) : get(cg, 0.5) for
-            v in levs
-        ]
-    elseif color isa AbstractVector
-        if length(color) != nuser
-            throw(ArgumentError("got $(length(color)) colors for $nuser levels"))
-        end
-        return color[order]
-    else
-        return fill(color, length(levs))
-    end
+    return nothing
 end
 
 end # module PlottingTools

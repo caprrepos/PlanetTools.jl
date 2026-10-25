@@ -1,5 +1,5 @@
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-11 to 2026-10-24
+##   used from 2026-10-11 to 2026-10-25
 
 """
     PlanetTools.Constructors
@@ -7,13 +7,12 @@
 Submodule of PlanetTools with utility constructors for ModelE / ROCKE-3D post-processing
 and plotting: [`fnames_modele`](@ref) builds monthly output file names and
 [`compose_palette`](@ref) builds discrete color palettes for binned plots. Load it with
-`using PlanetTools.Constructors`.
+`using PlanetTools.Constructors`. `compose_palette` is defined in a package extension that
+is loaded once Makie is loaded (`using Makie`, `using CairoMakie`, …).
 """
 module Constructors
 
-using ColorSchemes: ColorScheme, colorschemes
 using Dates: Date, Month, month, year
-using Makie: Makie
 
 export fnames_modele, compose_palette
 
@@ -89,32 +88,12 @@ function fnames_modele(
     return [string(m, ".", gname, id, ext) for id in ids, m in cmy]
 end
 
-# Return a ColorScheme for a palette given as a ColorScheme, Symbol, or String.
-_scheme(p::ColorScheme) = p
-function _scheme(p::Union{Symbol,AbstractString})
-    key = Symbol(p)
-    if !haskey(colorschemes, key)
-        msg = "unknown color scheme :$key (see keys(ColorSchemes.colorschemes))"
-        throw(ArgumentError(msg))
-    end
-    return colorschemes[key]
-end
-
-# `n` colors sampled evenly over [0, 1] of a scheme; a single color is the scheme's
-# midpoint (0.5) rather than its first color.
-function _sample(p, n::Integer)
-    n <= 0 && return Makie.RGBAf[]
-    cs = _scheme(p)
-    x = n == 1 ? (0.5,) : range(0.0, 1.0; length=n)
-    return Makie.RGBAf[Makie.to_color(get(cs, xi)) for xi in x]
-end
-
 """
     compose_palette(breaks; kwargs...) -> Vector{Makie.RGBAf}
 
 Return one color per interval between consecutive `breaks` (`length(breaks) - 1` colors)
 for discrete contour or binned plots, built from one or two color schemes and an optional
-`midcolor`.
+`midcolor`. Requires Makie to be loaded.
 
 With both palettes, the intervals at or below `demarcation` take `palette1`, the interval
 from the last break `≤ demarcation` to the next break takes `midcolor` (or else
@@ -158,54 +137,20 @@ julia> length(pal), pal[3] == Makie.to_color(:white)
 (5, true)
 ```
 """
-function compose_palette(
-    breaks::AbstractVector{<:Real};
-    palette1=nothing,
-    midcolor=nothing,
-    palette2=nothing,
-    demarcation::Union{Real,Nothing}=1.0,
-)
-    n = length(breaks)
-    n >= 2 || throw(ArgumentError("compose_palette: need ≥ 2 breaks, got $n"))
-    if !(all(isfinite, breaks) && all(i -> breaks[i] < breaks[i + 1], 1:(n - 1)))
-        msg = "compose_palette: breaks must be finite and strictly increasing"
-        throw(ArgumentError(msg))
-    end
-    if palette1 === nothing && palette2 === nothing
-        msg = "compose_palette: at least one of palette1, palette2 must be given"
-        throw(ArgumentError(msg))
-    end
+function compose_palette end
 
-    d = demarcation === nothing ? 1.0 : demarcation
-    nint = n - 1  # Number of colors to return.
-    hasmid = midcolor !== nothing
-
-    if palette1 !== nothing && palette2 !== nothing
-        k = count(<=(d), breaks)
-        nlow = max(k - 1, 0)
-        strad = 1 <= k <= n - 1  # An interval crossing the demarcation exists.
-        if hasmid && !strad
-            @warn "compose_palette: no interval straddles demarcation = $d; " *
-                "midcolor is not used"
+# Hint for calls before the Makie extension is loaded.
+function __init__()
+    Base.Experimental.register_error_hint(MethodError) do io, exc, _, _
+        ext = Base.get_extension(parentmodule(@__MODULE__), :PlanetToolsMakieExt)
+        if exc.f === compose_palette && ext === nothing
+            print(
+                io, "\n`compose_palette` is defined in the Makie extension of PlanetTools: "
+            )
+            print(io, "run `using Makie` (or CairoMakie, GLMakie) first.")
         end
-        nmid = hasmid && strad ? 1 : 0
-        nhigh = nint - nlow - nmid
-    elseif palette1 !== nothing
-        nmid = hasmid ? 1 : 0
-        nlow, nhigh = nint - nmid, 0
-    else
-        nmid = hasmid ? 1 : 0
-        nlow, nhigh = 0, nint - nmid
     end
-
-    pal = Makie.RGBAf[]
-    sizehint!(pal, nint)
-    append!(pal, _sample(palette1, nlow))
-    nmid == 1 && push!(pal, Makie.to_color(midcolor))
-    append!(pal, _sample(palette2, nhigh))
-
-    @assert length(pal) == nint
-    return pal
+    return nothing
 end
 
 end # module Constructors

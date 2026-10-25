@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.10'
+          - '1.11'
           - '1.13'
           - 'pre'
         os:
@@ -45,6 +45,37 @@ jobs:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
+  licenses:
+    name: License check - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions: # needed to allow julia-actions/cache to proactively delete old caches that it has created
+      actions: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1'
+      - uses: julia-actions/cache@v2
+      # Fails if a dependency has a license that is neither clearly permissive nor
+      # reviewed in scripts/license_check.jl.
+      - name: Check dependency licenses
+        run: julia --color=yes scripts/license_check.jl THIRD_PARTY_LICENSES-${{ runner.os }}.md
+      - name: Upload license inventory
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: third-party-licenses-${{ runner.os }}
+          path: THIRD_PARTY_LICENSES-${{ runner.os }}.md
+          if-no-files-found: warn
   docs:
     name: Documentation
     runs-on:
