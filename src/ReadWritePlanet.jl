@@ -1,5 +1,5 @@
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-24 to 2026-10-24
+##   used from 2026-10-24 to 2026-10-26
 
 """
     PlanetTools.ReadWritePlanet
@@ -11,7 +11,8 @@ with NCDatasets.jl: [`writenetcdf`](@ref) writes variables with coordinates and 
 """
 module ReadWritePlanet
 
-using NCDatasets: NCDataset, defDim, defVar, dimnames, name
+using NCDatasets: NCDatasets, NCDataset, defDim, defVar, dimnames, name
+using NCDatasets.CFTime: CFTime
 using OrderedCollections: OrderedDict
 
 export readnetcdf, writenetcdf
@@ -30,6 +31,25 @@ name; a dimension named `"time"` is unlimited. Dimensions without coordinates ar
 from the size of the data. Existing dimensions and variables (e.g. with `mode="a"`) are
 kept; a variable that already exists is not overwritten.
 
+# Missing values
+In data and coordinates, `missing`, `NaN` (if `nan_as_missing=true`), and values equal to
+the `_FillValue` or `missing_value` attribute are written as missing, i.e. as the stored
+`_FillValue`. If a variable contains missing values but has no `_FillValue` attribute,
+`_FillValue` is set to the `missing_value` attribute or, without that, to the NetCDF
+default fill value of its element type. The `_FillValue` attribute is converted to the
+element type of the variable. Missing values are therefore encoded correctly also for
+variables with `scale_factor`/`add_offset` attributes, where a numerical fill value in
+the data would otherwise be packed like a valid value.
+
+# Time axes of planetary calendars
+Numerical variables whose `units` attribute has the form `"<unit> since <reference>"`
+(e.g. the coordinate `time` with `"months since 0023-12-56"` of a Mars calendar) are
+written as they are, without CF date-time encoding. This avoids warnings and errors for
+reference dates that are not valid Gregorian dates. Describe a non-Earth calendar with CF
+attributes of a user-defined calendar, e.g. `"calendar" => "mars"` and
+`"month_lengths" => [61, 66, …]`; [`readnetcdf`](@ref) then returns the numbers instead
+of Earth dates. `Dates`/`DateTime` values are encoded as usual.
+
 # Keywords
 - `data=nothing`: a scalar, an array for one variable, or for several variables an array
     whose first dimension indexes `names`, `[Var, Lon, Lat, …]`.
@@ -46,6 +66,9 @@ kept; a variable that already exists is not overwritten.
 - `globalattr=nothing`: global attributes, any collection of name–value pairs.
 - `mode::AbstractString="c"`: `"c"` creates (overwrites) the file, `"a"` appends.
 - `format::Symbol=:netcdf4`: file format, see `NCDatasets.NCDataset`.
+- `nan_as_missing::Bool=true`: write `NaN` as missing (the PlanetTools convention for
+    missing data); `false` stores `NaN` as a value.
+- `deflatelevel::Integer=0`: compression level `0:9` of the data variables (NetCDF-4).
 
 # Throws
 - `ArgumentError`: if the sizes of `data`, `names`, `dimnames`, the coordinates, or
@@ -95,7 +118,10 @@ function writenetcdf(
     axypvar=nothing,
     axypvarattr=nothing,
     globalattr=nothing,
+    nan_as_missing::Bool=true,
+    deflatelevel::Integer=0,
 )
+    0 <= deflatelevel <= 9 || throw(ArgumentError("deflatelevel must be in 0:9"))
     coords = (datadim1, datadim2, datadim3, datadim4, datadim5, datadim6)
     coordattrs = (dim1attr, dim2attr, dim3attr, dim4attr, dim5attr, dim6attr)
     multi = names isa AbstractVector
@@ -114,7 +140,7 @@ function writenetcdf(
         if dimnames !== nothing
             for (i, dname) in enumerate(dimnames)
                 i <= MAX_COORDS && coords[i] !== nothing || continue
-                _define_coordinate!(ds, dname, coords[i], coordattrs[i])
+                _define_coordinate!(ds, dname, coords[i], coordattrs[i], nan_as_missing)
             end
         end
 
@@ -128,7 +154,7 @@ function writenetcdf(
                 else
                     _attr(dataattr)
                 end
-                defVar(ds, vname, vdata, vdims; attrib=attr)
+                _defvar!(ds, vname, vdata, vdims, attr, nan_as_missing, deflatelevel)
             end
         end
 
@@ -150,7 +176,7 @@ function writenetcdf(
             else
                 ()
             end
-            defVar(ds, "axyp", axypvar, adims; attrib=_attr(axypvarattr))
+            _defvar!(ds, "axyp", axypvar, adims, _attr(axypvarattr), nan_as_missing, 0)
         end
 
         if globalattr !== nothing
@@ -170,6 +196,13 @@ Values are read as NCDatasets returns them: scale factors and offsets are applie
 values equal to `_FillValue` become `missing`. Requested variables that do not exist are
 skipped with a warning.
 
+Variables with time units `"<unit> since <reference>"` are decoded into date-times only
+if `decode_time=true` and the units can be decoded correctly: the calendar (attribute
+`calendar`, default `"standard"`) and the reference date must be known to CFTime, and
+the unit must not be `months` or `years`, which UDUNITS/CF define as fixed fractions of a
+mean tropical year, not as calendar months or years. Otherwise, e.g. for the Mars time
+axis `"months since 0023-12-56"` with `calendar = "mars"`, the numbers are returned.
+
 # Arguments
 - `filepath::AbstractString`: path of the NetCDF file.
 - `var_names::AbstractVector{<:AbstractString}`: names of the variables to read.
@@ -177,6 +210,7 @@ skipped with a warning.
 # Keywords
 - `missing_as_nan::Bool=false`: return floating-point data with `NaN` instead of
     `missing` (element type without `Missing`), as expected by PlanetTools' statistics.
+- `decode_time::Bool=true`: decode decodable time variables into date-times.
 
 # Returns
 - `NamedTuple` with fields
@@ -206,6 +240,7 @@ function readnetcdf(
     filepath::AbstractString,
     var_names::AbstractVector{<:AbstractString};
     missing_as_nan::Bool=false,
+    decode_time::Bool=true,
 )
     return NCDataset(filepath, "r") do ds
         global_attributes = OrderedDict{String,Any}(String(k) => v for (k, v) in ds.attrib)
@@ -216,7 +251,12 @@ function readnetcdf(
                 @warn "Variable '$vname' not found in file: $filepath"
                 continue
             end
-            var = ds[vname]
+            raw = NCDatasets.variable(ds, vname)  # no CF decoding yet
+            var = if _has_time_units(raw.attrib) && !(decode_time && _decodable(raw.attrib))
+                NCDatasets.cfvariable(ds, vname; units=nothing, calendar=nothing)
+            else
+                ds[vname]
+            end
             variable_info[vname] = OrderedDict{String,Any}(
                 "name" => String(name(var)),
                 "dimensions" => dimnames(var),
@@ -271,18 +311,110 @@ function _check_write_inputs(data, names, multi, nvdims, dimnames, coords, dataa
 end
 
 # Define dimension `dname` and its coordinate variable, unless they exist.
-function _define_coordinate!(ds, dname, coord, attr)
+function _define_coordinate!(ds, dname, coord, attr, nan_as_missing)
     if !haskey(ds.dim, dname)
         defDim(ds, dname, dname == "time" ? Inf : length(coord))
     end
     if !haskey(ds, dname)
-        defVar(ds, dname, coord, (dname,); attrib=_attr(attr))
+        _defvar!(ds, dname, coord, (dname,), _attr(attr), nan_as_missing, 0)
     end
     return nothing
 end
 
-_attr(::Nothing) = Pair{String,Any}[]
-_attr(a) = a
+# Attributes as an ordered dictionary with String keys (a copy; inputs are not modified).
+_attr(::Nothing) = OrderedDict{String,Any}()
+_attr(a) = OrderedDict{String,Any}(String(k) => v for (k, v) in a)
+
+# Define variable `name` with data `data`: missing values encoded (see `_encode_missing`),
+# numeric variables with time units written without date-time encoding.
+function _defvar!(ds, name, data, dims, attr, nan_as_missing, deflatelevel)
+    attr = _attr(attr)
+    data = _encode_missing(data, attr, nan_as_missing)
+    kw = deflatelevel > 0 ? (; deflatelevel=deflatelevel, shuffle=true) : (;)
+    T = nonmissingtype(eltype(data))
+    if !(T <: Number && _has_time_units(attr))
+        defVar(ds, name, data, dims; attrib=attr, kw...)
+        return nothing
+    end
+    # Raw definition: attributes are set on the storage variable, so that no CF date-time
+    # encoding is attempted for units like "months since 0023-12-56".
+    fv = get(attr, "_FillValue", nothing)
+    if data isa AbstractArray
+        for (d, n) in zip(dims, size(data))
+            haskey(ds.dim, d) || defDim(ds, d, n)
+        end
+    end
+    if fv === nothing
+        defVar(ds, name, T, dims; kw...)
+    else
+        defVar(ds, name, T, dims; fillvalue=convert(T, fv), kw...)
+    end
+    rv = NCDatasets.variable(ds, name)
+    for (k, v) in attr
+        k == "_FillValue" || (rv.attrib[k] = v)
+    end
+    if data isa Number
+        rv[] = data
+    else
+        filled = fv === nothing ? data : coalesce.(data, convert(T, fv))
+        rv[axes(filled)...] = filled  # explicit ranges: also for unlimited dimensions
+    end
+    return nothing
+end
+
+# Mark missing values of `x` (`missing`, `NaN` if `nan_as_missing`, values equal to
+# `_FillValue` or `missing_value`) as `missing`, and make sure that `attr` has a
+# `_FillValue` of the element type of `x` if there are any. Scalars and non-numeric data
+# are returned unchanged.
+_encode_missing(x, attr, nan_as_missing) = x
+function _encode_missing(x::AbstractArray, attr, nan_as_missing)
+    T = nonmissingtype(eltype(x))
+    T <: Number || return x
+    fill = get(attr, "_FillValue", nothing)
+    mval = get(attr, "missing_value", nothing)
+    marks = T[]
+    for f in (fill, mval)
+        f === nothing && continue
+        for v in (f isa AbstractArray ? f : (f,))
+            push!(marks, convert(T, v))
+        end
+    end
+    function ismiss(v)
+        return v === missing ||
+               (nan_as_missing && v isa AbstractFloat && isnan(v)) ||
+               (!isempty(marks) && v in marks)
+    end
+    if fill !== nothing
+        attr["_FillValue"] = convert(T, fill)
+    end
+    any(ismiss, x) || return x
+    if fill === nothing
+        attr["_FillValue"] = isempty(marks) ? NCDatasets.fillvalue(T) : first(marks)
+    end
+    return Union{Missing,T}[ismiss(v) ? missing : v for v in x]
+end
+
+# Time units "<unit> since <reference>".
+function _has_time_units(attr)
+    u = get(attr, "units", nothing)
+    return u isa AbstractString && occursin(" since ", u)
+end
+
+# Whether CF date-time decoding of the time units in `attr` gives correct dates: known
+# calendar and reference date, and a unit other than months or years.
+function _decodable(attr)
+    units = String(attr["units"])
+    unit = lowercase(strip(first(split(units, " since "))))
+    unit in ("month", "months", "year", "years", "common_year", "common_years") &&
+        return false
+    calendar = lowercase(String(get(attr, "calendar", "standard")))
+    try
+        CFTime.timetype(calendar, units, Float64)
+        return true
+    catch
+        return false
+    end
+end
 
 _convert(::Type{T}, x::Number) where {T} = convert(T, x)
 function _convert(::Type{T}, x::AbstractArray) where {T}

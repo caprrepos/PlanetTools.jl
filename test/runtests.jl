@@ -2,7 +2,7 @@
 ##   used from 2026-10-24 to 2026-10-24
 
 using ColorSchemes: colorschemes
-using Dates: Date, Month, Year, daysinmonth, month, year
+using Dates: Dates, Date, Month, Year, daysinmonth, month, year
 using Documenter: DocMeta, doctest
 using Logging: Logging
 using Makie: Makie

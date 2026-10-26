@@ -1,5 +1,5 @@
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-24 to 2026-10-24
+##   used from 2026-10-24 to 2026-10-26
 
 # Tests for `PlanetStatistics`. Imports are in `runtests.jl`.
 
@@ -9,12 +9,14 @@ function ref_wmean(x, w)
     return sum(w[keep] .* x[keep]) / sum(w[keep])
 end
 
-function ref_wmoments(x, w)
+function ref_wmoments(x, w; corrected=false)
     keep = .!isnan.(x) .& (w .> 0)
     xv, wv = x[keep], w[keep]
-    mu = sum(wv .* xv) / sum(wv)
-    m(k) = sum(wv .* (xv .- mu) .^ k) / sum(wv)
-    return mu, sqrt(m(2)), m(3) / m(2)^1.5, m(4) / m(2)^2 - 3
+    v1, v2 = sum(wv), sum(wv .^ 2)
+    mu = sum(wv .* xv) / v1
+    m(k) = sum(wv .* (xv .- mu) .^ k) / v1
+    sd = corrected ? sqrt(sum(wv .* (xv .- mu) .^ 2) / (v1 - v2 / v1)) : sqrt(m(2))
+    return mu, sd, m(3) / m(2)^1.5, m(4) / m(2)^2 - 3
 end
 
 nanfill(dims...) = fill(NaN, dims...)
@@ -66,6 +68,35 @@ const RNG = MersenneTwister(20261024)
     @test_throws DimensionMismatch calc_planet_means!(
         data, zm, gm, wz, wg, axyp[1:2, :], t_ranges
     )
+end
+
+@testset "threaded kernels on large arrays" begin
+    # Large enough for the point-parallel path; compared with reference loops.
+    nlon, nlat, nlev, nt = 16, 9, 4, 24
+    data = randdata(RNG, 1, 2, nlon, nlat, nlev, nt)
+    axyp = [cosd(l) for _ in 1:nlon, l in range(-80, 80; length=nlat)]
+    zm, wz = nanfill(1, 2, 1, nlat, nlev, nt), nanfill(1, 2, 1, nlat, nlev, nt)
+    gm, wg = nanfill(1, 2, 1, 1, nlev, nt), nanfill(1, 2, 1, 1, nlev, nt)
+    calc_planet_means!(data, zm, gm, wz, wg, axyp, [nt]; threshold=50)
+    for v in 1:2, k in 1:nlev, t in 1:nt
+        x = data[1, v, :, :, k, t]
+        frac = sum(axyp[.!isnan.(x)]) / sum(axyp)
+        ref = frac * 100 < 50 ? NaN : ref_wmean(vec(x), vec(axyp))
+        @test isequal(gm[1, v, 1, 1, k, t], ref) || gm[1, v, 1, 1, k, t] ≈ ref
+        j = mod1(t, nlat)
+        xz = data[1, v, :, j, k, t]
+        nz = count(!isnan, xz)
+        refz = nz / nlon * 100 < 50 ? NaN : ref_wmean(xz, ones(nlon))
+        @test isequal(zm[1, v, 1, j, k, t], refz) || zm[1, v, 1, j, k, t] ≈ refz
+    end
+    moa, soa, w = (nanfill(1, 2, nlon, nlat, nlev) for _ in 1:3)
+    calc_multiyear_stats!(
+        moa, soa, w, nothing, nothing, data, [1 nt], Val(:annual); threshold=0
+    )
+    for v in 1:2, i in 1:nlon, j in 1:nlat, k in 1:nlev
+        ref = ref_wmoments(data[1, v, i, j, k, :], ones(nt); corrected=true)
+        @test moa[1, v, i, j, k] ≈ ref[1] && soa[1, v, i, j, k] ≈ ref[2]
+    end
 end
 
 @testset "calc_annual_mean_ts!" begin
@@ -158,7 +189,7 @@ end
         for ns in 1:2, v in 1:2, k in 1:3
             t = idx[ns, 1]:idx[ns, 2]
             x = data[ns, v, k, t]
-            ref = ref_wmoments(x, data_w[ns, v, k, t] .* weights[ns, t])
+            ref = ref_wmoments(x, data_w[ns, v, k, t] .* weights[ns, t]; corrected=true)
             @test [moa[ns, v, k], soa[ns, v, k], ska[ns, v, k], kua[ns, v, k]] ≈
                 collect(ref)
             @test w[ns, v, k] ≈ count(!isnan, x) / length(t)
@@ -179,6 +210,37 @@ end
             threshold=0,
         )
         @test m2 ≈ moa && s2 ≈ soa
+        # Population standard deviation.
+        calc_multiyear_stats!(
+            m2,
+            s2,
+            w2,
+            nothing,
+            nothing,
+            data,
+            idx,
+            Val(:annual);
+            weights=weights,
+            data_w=data_w,
+            threshold=0,
+            corrected=false,
+        )
+        for ns in 1:2, v in 1:2, k in 1:3
+            t = idx[ns, 1]:idx[ns, 2]
+            ref = ref_wmoments(data[ns, v, k, t], data_w[ns, v, k, t] .* weights[ns, t])
+            @test s2[ns, v, k] ≈ ref[2]
+        end
+        # Equal weights: corrected = sample standard deviation (n - 1); one valid step: NaN.
+        x = reshape([1.0, 2.0, 4.0, NaN], 1, 1, 4)
+        a, b, c = nanfill(1, 1), nanfill(1, 1), nanfill(1, 1)
+        calc_multiyear_stats!(
+            a, b, c, nothing, nothing, x, [1 4], Val(:annual); threshold=0
+        )
+        @test b[1] ≈ sqrt(((1 - 7 / 3)^2 + (2 - 7 / 3)^2 + (4 - 7 / 3)^2) / 2)
+        calc_multiyear_stats!(
+            a, b, c, nothing, nothing, x, [3 4], Val(:annual); threshold=0
+        )
+        @test a[1] == 4.0 && isnan(b[1])
         @test_throws DimensionMismatch calc_multiyear_stats!(
             m2,
             s2,
@@ -201,8 +263,9 @@ end
         )
         for ns in 1:2, m in 1:11
             x = data[ns, 2, 1, idx[ns, m]]
-            mu, sd, _, _ = ref_wmoments(x, ones(length(x)))
-            @test moa[ns, 2, 1, m] ≈ mu && soa[ns, 2, 1, m] ≈ sd
+            mu, sd, _, _ = ref_wmoments(x, ones(length(x)); corrected=true)
+            @test moa[ns, 2, 1, m] ≈ mu
+            @test isequal(soa[ns, 2, 1, m], sd) || soa[ns, 2, 1, m] ≈ sd  # NaN if n = 1.
         end
         @test all(isnan, moa[2, :, :, 12])
     end
@@ -359,8 +422,12 @@ end
     m, s, sk, ku = (nanfill(2, 3) for _ in 1:4)
     calc_ensemble_stats!(m, s, moa; ens_ska=sk, ens_kua=ku, w_moa=w_moa)
     for v in 1:2, k in 1:3
-        ref = ref_wmoments(moa[:, v, k], w_moa[:, v, k])
+        ref = ref_wmoments(moa[:, v, k], w_moa[:, v, k]; corrected=true)
         @test [m[v, k], s[v, k], sk[v, k], ku[v, k]] ≈ collect(ref)
+    end
+    calc_ensemble_stats!(m, s, moa; w_moa=w_moa, corrected=false)
+    for v in 1:2, k in 1:3
+        @test s[v, k] ≈ ref_wmoments(moa[:, v, k], w_moa[:, v, k])[2]
     end
     # Threshold on Σw / n_sims; weights of missing members do not count.
     x = reshape([1.0, 3.0, NaN, NaN], 4, 1)

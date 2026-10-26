@@ -1,5 +1,5 @@
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-24 to 2026-10-24
+##   used from 2026-10-24 to 2026-10-26
 
 # Tests for `ReadWritePlanet`. Imports are in `runtests.jl`.
 
@@ -131,7 +131,18 @@ const COORDS = (;
         x = Union{Missing,Float32}[1 missing; NaN 4]
         writenetcdf(p; data=x, names="x", dataattr=Dict("_FillValue" => -999.0f0))
         y = readnetcdf(p, ["x"]).variable_data["x"]
-        @test eltype(y) == Union{Missing,Float32} && ismissing(y[1, 2]) && isnan(y[2, 1])
+        @test eltype(y) == Union{Missing,Float32} &&
+            ismissing(y[1, 2]) &&
+            ismissing(y[2, 1])
+        p2 = ncpath("fill_nan.nc")  # NaN kept as a value on request.
+        writenetcdf(
+            p2;
+            data=x,
+            names="x",
+            dataattr=Dict("_FillValue" => -999.0f0),
+            nan_as_missing=false,
+        )
+        @test isnan(readnetcdf(p2, ["x"]).variable_data["x"][2, 1])
         z = readnetcdf(p, ["x"]; missing_as_nan=true).variable_data["x"]
         @test eltype(z) == Float32 && isnan(z[1, 2]) && z[2, 2] == 4
 
@@ -144,6 +155,100 @@ const COORDS = (;
         p = ncpath("int.nc")
         writenetcdf(p; data=[1 2; 3 4], names="n")
         @test readnetcdf(p, ["n"]; missing_as_nan=true).variable_data["n"] == [1 2; 3 4]
+    end
+
+    @testset "missing values with packing, implicit fill values" begin
+        # Data in physical units with a scale factor (packing) and NaN as missing: the
+        # stored value of the missing point must be the fill value, not a packed number.
+        p = ncpath("packed.nc")
+        x = Float32[1.0f-6 NaN; 2.0f-6 -1.0f30]  # -1f30: numerical fill value in the data
+        writenetcdf(
+            p;
+            data=x,
+            names="Clay",
+            dimnames=["lon", "lat"],
+            dataattr=Dict(
+                "units" => "kg kg-1", "scale_factor" => 1.0f-8, "_FillValue" => -1.0e30
+            ),  # Float64 fill for Float32 data
+        )
+        NCDataset(p) do ds
+            @test ds["Clay"].var[1, 2] == -1.0f30 && ds["Clay"].var[2, 2] == -1.0f30
+            @test ds["Clay"].var[1, 1] ≈ 100
+            @test ds["Clay"].attrib["_FillValue"] === -1.0f30
+        end
+        y = readnetcdf(p, ["Clay"]; missing_as_nan=true).variable_data["Clay"]
+        @test y[1, 1] ≈ 1.0f-6 && isnan(y[1, 2]) && isnan(y[2, 2])
+
+        # Without a _FillValue attribute: default fill value of the element type.
+        p = ncpath("implicit_fill.nc")
+        writenetcdf(p; data=[1.0 NaN], names="x", dimnames=["a", "b"])
+        NCDataset(p) do ds
+            @test ds["x"].attrib["_FillValue"] == NCDatasets.fillvalue(Float64)
+        end
+        @test ismissing(readnetcdf(p, ["x"]).variable_data["x"][2])
+        p = ncpath("missing_value.nc")  # missing_value only
+        writenetcdf(
+            p;
+            data=Float32[1 -9],
+            names="x",
+            dimnames=["a", "b"],
+            dataattr=Dict("missing_value" => -9.0f0),
+        )
+        @test ismissing(readnetcdf(p, ["x"]).variable_data["x"][2])
+
+        # Compression
+        p = ncpath("deflate.nc")
+        writenetcdf(p; data=zeros(Float32, 50, 50), names="z", deflatelevel=5)
+        @test NCDataset(ds -> NCDatasets.deflate(ds["z"].var)[2], p)
+        @test_throws ArgumentError writenetcdf(p; data=1.0, names="a", deflatelevel=10)
+    end
+
+    @testset "time axes of planetary calendars" begin
+        mars = Dict(
+            "units" => "months since 0023-12-56",
+            "calendar" => "mars",
+            "month_lengths" => [61, 66, 66, 65, 60, 54, 50, 47, 46, 47, 51, 56],
+        )
+        p = ncpath("mars_time.nc")
+        @test_logs writenetcdf(  # no warnings
+            p;
+            data=rand(Float32, 2, 3),
+            names="u",
+            dimnames=["lon", "time"],
+            datadim1=[0.0, 180.0],
+            datadim2=Int32[1, 2, 3],
+            dim2attr=mars,
+        )
+        r = @test_logs readnetcdf(p, ["time", "u"])
+        @test r.variable_data["time"] == Int32[1, 2, 3]  # numbers, not Earth dates
+        @test r.variable_info["time"]["attributes"]["calendar"] == "mars"
+        @test r.variable_info["time"]["attributes"]["month_lengths"] ==
+            mars["month_lengths"]
+        NCDataset(ds -> @test(NCDatasets.unlimited(ds.dim) == ["time"]), p)
+
+        # "months since" is never decoded, even with a known calendar and valid date.
+        p = ncpath("months.nc")
+        writenetcdf(
+            p;
+            data=[1.0, 2.0],
+            names="t",
+            dimnames=["time"],
+            dataattr=Dict("units" => "months since 2000-01-01"),
+        )
+        @test readnetcdf(p, ["t"]).variable_data["t"] == [1.0, 2.0]
+
+        # Decodable Earth time axes are decoded unless decode_time=false.
+        p = ncpath("days.nc")
+        writenetcdf(
+            p;
+            data=[0.0, 31.0],
+            names="t",
+            dimnames=["time"],
+            dataattr=Dict("units" => "days since 2000-01-01"),
+        )
+        @test readnetcdf(p, ["t"]).variable_data["t"] ==
+            [Dates.DateTime(2000, 1, 1), Dates.DateTime(2000, 2, 1)]
+        @test readnetcdf(p, ["t"]; decode_time=false).variable_data["t"] == [0.0, 31.0]
     end
 
     @testset "missing variable" begin

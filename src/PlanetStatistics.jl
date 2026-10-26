@@ -1,5 +1,5 @@
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-24 to 2026-10-24
+##   used from 2026-10-24 to 2026-10-26
 
 """
     PlanetTools.PlanetStatistics
@@ -20,7 +20,13 @@ Conventions shared by all functions:
     is `NaN` and its availability weight `0`.
 - Results are written into preallocated output arrays; entries not covered by a
     calculation are left unchanged, so initialize outputs with `NaN`.
-- Simulations are processed in parallel with `Threads.@threads`.
+- Simulations are processed in parallel with `Threads.@threads`; within a simulation the
+    output points are processed in parallel as well, so a single simulation also uses all
+    threads.
+- The kernels are explicit loops that accumulate in `Float64` and allocate no temporary
+    arrays of the size of the data.
+- Standard deviations are sample standard deviations (`corrected=true`, Bessel's
+    correction generalized to weights) unless `corrected=false` is passed.
 """
 module PlanetStatistics
 
@@ -93,28 +99,20 @@ function calc_planet_means!(
     if size(axyp) != (size(data, 3), size(data, 4))
         throw(DimensionMismatch("axyp must have size (Lon, Lat) of data"))
     end
-    area = reshape(axyp, 1, 1, size(axyp)..., ntuple(_ -> 1, nd - 4)...)
     total_area = sum(axyp)
-    nlon, nhoriz = size(data, 3), size(data, 3) * size(data, 4)
-
     Threads.@threads for ns in eachindex(t_ranges)
         _log(verbose, "Zonal and global means", ns, run_names)
-        idx = (ns:ns, ntuple(_ -> Colon(), nd - 2)..., 1:t_ranges[ns])
-        x = view(data, idx...)
-        valid = .!isnan.(x)
-        xv = ifelse.(valid, x, zero(eltype(x)))
-
-        nvalid = sum(valid; dims=3)
-        zmean = sum(xv; dims=3) ./ nvalid
-        _store!(
-            view(zm_out, idx...), view(weights_zm, idx...), zmean, nvalid ./ nlon, threshold
+        idx = (ns, ntuple(_ -> Colon(), nd - 2)..., 1:t_ranges[ns])
+        _planet_means_kernel!(
+            view(zm_out, idx...),
+            view(weights_zm, idx...),
+            view(gm_out, idx...),
+            view(weights_gm, idx...),
+            view(data, idx...),
+            axyp,
+            total_area,
+            threshold,
         )
-
-        validarea = sum(valid .* area; dims=(3, 4))
-        gmean = sum(xv .* area; dims=(3, 4)) ./ validarea
-        allvalid = sum(valid; dims=(3, 4)) .== nhoriz
-        gfrac = ifelse.(allvalid, 1.0, validarea ./ total_area)  # Exactly 1 if complete.
-        _store!(view(gm_out, idx...), view(weights_gm, idx...), gmean, gfrac, threshold)
     end
     return nothing
 end
@@ -304,8 +302,16 @@ Compute weighted multi-year mean, standard deviation, and optionally skewness an
 kurtosis over the time steps selected by `indices`, with the fraction of valid steps as
 availability.
 
-The moments are weighted population moments: with weights `w`, mean `μ = Σwx / Σw`,
-variance `Σw(x - μ)² / Σw`, skewness `m₃ / σ³`, and excess kurtosis `m₄ / σ⁴ - 3`.
+With weights `w` (availability × temporal weight) of the valid steps, `V₁ = Σw`,
+`V₂ = Σw²`, the mean is `μ = Σwx / V₁` and the variance
+
+- `corrected=true` (default): `σ² = Σw(x - μ)² / (V₁ - V₂ / V₁)`, the unbiased estimator
+    for reliability weights; with equal weights this is `Σ(x - μ)² / (n - 1)`, the sample
+    variance. It needs at least two valid steps (otherwise `NaN`).
+- `corrected=false`: the population variance `Σw(x - μ)² / V₁`.
+
+Skewness `m₃ / m₂^{3/2}` and excess kurtosis `m₄ / m₂² - 3` are always computed from the
+population central moments `mₖ = Σw(x - μ)ᵏ / V₁`.
 
 - `Val(:annual)`: `data` is `(Sim, Var, …, Time)`, outputs are `(Sim, Var, …)`, and
     `indices` is a `(Sim, 2)` matrix of the first and last time index.
@@ -328,6 +334,7 @@ Simulations (or months, seasons) with empty or zero indices are skipped.
 - `weights=nothing`: `(Sim, Time)` (or `(Sim, Year)`) matrix of temporal weights.
 - `data_w=nothing`: availability weights, same size as `data`.
 - `threshold::Real=100.0`: minimum percentage of valid time steps.
+- `corrected::Bool=true`: sample (`true`) or population (`false`) standard deviation.
 
 # Examples
 ```jldoctest
@@ -338,8 +345,14 @@ julia> moa, soa, w = fill(NaN, 1, 1), fill(NaN, 1, 1), fill(NaN, 1, 1);
 julia> calc_multiyear_stats!(moa, soa, w, nothing, nothing, data, [1 4], Val(:annual);
            threshold=50);
 
-julia> moa[1], soa[1] ≈ sqrt(2 / 3), w[1]
-(2.0, true, 0.75)
+julia> moa[1], soa[1], w[1]  # Sample standard deviation of [1, 2, 3].
+(2.0, 1.0, 0.75)
+
+julia> calc_multiyear_stats!(moa, soa, w, nothing, nothing, data, [1 4], Val(:annual);
+           threshold=50, corrected=false);
+
+julia> soa[1] ≈ sqrt(2 / 3)  # Population standard deviation.
+true
 ```
 """
 function calc_multiyear_stats!(
@@ -354,6 +367,7 @@ function calc_multiyear_stats!(
     weights=nothing,
     data_w=nothing,
     threshold::Real=100.0,
+    corrected::Bool=true,
 )
     _check_same_size(data, data_w)
     Threads.@threads for ns in axes(data, 1)
@@ -366,6 +380,7 @@ function calc_multiyear_stats!(
             i1:i2,
             weights === nothing ? nothing : view(weights, ns, i1:i2),
             threshold,
+            corrected,
         )
     end
     return nothing
@@ -383,6 +398,7 @@ function calc_multiyear_stats!(
     weights=nothing,
     data_w=nothing,
     threshold::Real=100.0,
+    corrected::Bool=true,
 )
     _check_same_size(data, data_w)
     Threads.@threads for ns in axes(data, 1)
@@ -400,6 +416,7 @@ function calc_multiyear_stats!(
                 t,
                 weights === nothing ? nothing : view(weights, ns, t),
                 threshold,
+                corrected,
             )
         end
     end
@@ -418,6 +435,7 @@ function calc_multiyear_stats!(
     weights=nothing,
     data_w=nothing,
     threshold::Real=100.0,
+    corrected::Bool=true,
 )
     _check_same_size(data, data_w)
     Threads.@threads for ns in axes(data, 1)
@@ -432,6 +450,7 @@ function calc_multiyear_stats!(
                 i1:i2,
                 weights === nothing ? nothing : view(weights, ns, i1:i2),
                 threshold,
+                corrected,
             )
         end
     end
@@ -612,7 +631,10 @@ end
     calc_ensemble_stats!(ens_mean, ens_std, moa; kwargs...) -> Nothing
 
 Compute the weighted ensemble mean and standard deviation over the simulations (dimension 1
-of `moa`), and optionally skewness and excess kurtosis, as weighted population moments.
+of `moa`), and optionally skewness and excess kurtosis. The standard deviation is the
+sample standard deviation for reliability weights (`corrected=true`, see
+[`calc_multiyear_stats!`](@ref)) or the population standard deviation
+(`corrected=false`); skewness and kurtosis are population moments.
 
 The ensemble availability is `Σ w / n_sims` over valid members, with `w` from `w_moa`
 (or 1); where it is below `threshold` percent, the results are `NaN`.
@@ -625,6 +647,7 @@ The ensemble availability is `Σ w / n_sims` over valid members, with `w` from `
 - `ens_ska=nothing`, `ens_kua=nothing`: outputs for skewness and excess kurtosis.
 - `w_moa=nothing`: availability weights, same size as `moa`.
 - `threshold::Real=0.0`: minimum ensemble availability in percent.
+- `corrected::Bool=true`: sample (`true`) or population (`false`) standard deviation.
 
 # Examples
 ```jldoctest
@@ -634,7 +657,7 @@ julia> m, s = fill(NaN, 1), fill(NaN, 1);
 
 julia> calc_ensemble_stats!(m, s, moa);
 
-julia> m[1], s[1] ≈ sqrt(14 / 3)
+julia> m[1], s[1] ≈ sqrt(14 / 2)
 (3.0, true)
 ```
 """
@@ -646,6 +669,7 @@ function calc_ensemble_stats!(
     ens_kua=nothing,
     w_moa=nothing,
     threshold::Real=0.0,
+    corrected::Bool=true,
 )
     _check_same_size(moa, w_moa)
     higher = ens_ska !== nothing || ens_kua !== nothing
@@ -654,7 +678,8 @@ function calc_ensemble_stats!(
     invalid = dropdims(frac .* 100 .< threshold; dims=1)
     nanif(x) = ifelse.(invalid, NaN, dropdims(x; dims=1))
     ens_mean .= nanif(st.mean)
-    ens_std .= nanif(sqrt.(st.m2))
+    var = corrected ? _corrected_var.(st.m2, st.sw, st.sw2) : st.m2
+    ens_std .= nanif(sqrt.(var))
     ens_ska === nothing || (ens_ska .= nanif(st.m3 ./ st.m2 .^ 1.5))
     ens_kua === nothing || (ens_kua .= nanif(st.m4 ./ st.m2 .^ 2 .- 3))
     return nothing
@@ -713,65 +738,188 @@ end
 
 # --- Internal helpers ---
 
-# Weighted moments of `x` along `dim`. Valid points are non-NaN with positive availability
-# `avail` (array like `x` or `nothing`); their weight is availability × temporal weight
-# `tw` (vector along `dim` or `nothing`). Returns singleton-`dim` arrays: mean, central
-# moments m2 (and m3, m4 if `higher`), the valid fraction `count / nexpected`, and the
-# sum of availability weights `sumw` (temporal weights excluded).
-function _weighted_moments(x, avail, tw, dim, nexpected; order::Int=2, higher::Bool=false)
+# Weighted moments of `x` along `dim` (used by the ensemble statistics). Valid points are
+# non-NaN with positive availability `avail` (array like `x` or `nothing`); their weight is
+# availability × temporal weight `tw` (vector along `dim` or `nothing`). Returns
+# singleton-`dim` arrays: mean, population central moments m2 (and m3, m4 if `higher`), the
+# valid fraction `count / nexpected`, the sum of availability weights `sumw` (temporal
+# weights excluded), and the sums of the weights `sw` and of their squares `sw2`.
+function _weighted_moments(x, avail, tw, dim, nexpected; higher::Bool=false)
     a = avail === nothing ? true : avail
     valid = .!isnan.(x) .& (a .> 0)
     twb = tw === nothing ? true : reshape(tw, ntuple(i -> i == dim ? length(tw) : 1, dim))
     w = ifelse.(valid, a .* twb, false)
     xv = ifelse.(valid, x, zero(eltype(x)))
     sw = sum(w; dims=dim)
+    sw2 = sum(w .^ 2; dims=dim)
     mu = sum(w .* xv; dims=dim) ./ sw
     fraction = sum(valid; dims=dim) ./ nexpected
     sumw = sum(ifelse.(valid, a, false); dims=dim)
-    m2 = m3 = m4 = nothing
-    if order >= 2 || higher
-        d = ifelse.(valid, x .- mu, zero(eltype(mu)))
-        m2 = sum(w .* d .^ 2; dims=dim) ./ sw
-        if higher
-            m3 = sum(w .* d .^ 3; dims=dim) ./ sw
-            m4 = sum(w .* d .^ 4; dims=dim) ./ sw
+    d = ifelse.(valid, x .- mu, zero(eltype(mu)))
+    m2 = sum(w .* d .^ 2; dims=dim) ./ sw
+    m3 = m4 = nothing
+    if higher
+        m3 = sum(w .* d .^ 3; dims=dim) ./ sw
+        m4 = sum(w .* d .^ 4; dims=dim) ./ sw
+    end
+    return (; mean=mu, m2, m3, m4, fraction, sumw, sw, sw2)
+end
+
+# Variance for reliability weights from the population variance `m2`, `V₁ = sw`, and
+# `V₂ = sw2`: Σw(x - μ)² / (V₁ - V₂ / V₁); NaN if the denominator is not positive (fewer
+# than two valid points).
+function _corrected_var(m2, sw, sw2)
+    denom = sw - sw2 / sw
+    return denom > 0 ? m2 * sw / denom : oftype(float(m2), NaN)
+end
+
+# Apply `f(I)` to every index `I` of the `CartesianIndices` `R`, in parallel chunks when
+# `R` is large enough to make threading worthwhile.
+function _tforeach(f, R::CartesianIndices)
+    n = length(R)
+    nchunks = min(cld(n, 256), 4 * Threads.nthreads())
+    if nchunks <= 1
+        for I in R
+            f(I)
+        end
+        return nothing
+    end
+    chunks = collect(Iterators.partition(1:n, cld(n, nchunks)))
+    Threads.@threads for c in chunks
+        for k in c
+            f(R[k])
         end
     end
-    return (; mean=mu, m2, m3, m4, fraction, sumw)
+    return nothing
+end
+
+# Availability of `x[I, t]`: 1 without availability weights.
+@inline _avail(::Nothing, I, t) = 1.0
+@inline _avail(xw, I, t) = Float64(xw[I, t])
+
+# Temporal weight of the k-th selected step: 1 without temporal weights.
+@inline _tweight(::Nothing, k) = 1.0
+@inline _tweight(tw, k) = Float64(tw[k])
+
+# Store a value and its availability at `I`, applying the threshold (percent).
+@inline function _store1!(out, wout, I, value, fraction, threshold)
+    if fraction * 100 < threshold
+        out[I] = NaN
+        wout[I] = 0
+    else
+        out[I] = value
+        wout[I] = fraction
+    end
+    return nothing
+end
+
+# Zonal (equal weights over longitude) and area-weighted global means of
+# `x = (Var, Lon, Lat, rest...)` into `z`, `wz` (`(Var, 1, Lat, rest...)`) and `g`, `wg`
+# (`(Var, 1, 1, rest...)`).
+function _planet_means_kernel!(z, wz, g, wg, x, axyp, total_area, threshold)
+    nv, nlon, nlat = size(x, 1), size(x, 2), size(x, 3)
+    nhoriz = nlon * nlat
+    _tforeach(CartesianIndices(size(x)[4:end])) do r
+        @inbounds for v in 1:nv
+            gs = 0.0
+            ga = 0.0
+            gn = 0
+            for j in 1:nlat
+                zs = 0.0
+                zn = 0
+                for i in 1:nlon
+                    xi = x[v, i, j, r]
+                    isnan(xi) && continue
+                    a = Float64(axyp[i, j])
+                    zs += xi
+                    zn += 1
+                    gs += a * xi
+                    ga += a
+                end
+                zval = zn > 0 ? zs / zn : NaN
+                _store1!(z, wz, CartesianIndex(v, 1, j, r), zval, zn / nlon, threshold)
+                gn += zn
+            end
+            gfrac = gn == nhoriz ? 1.0 : ga / total_area  # Exactly 1 if complete.
+            _store1!(g, wg, CartesianIndex(v, 1, 1, r), gs / ga, gfrac, threshold)
+        end
+    end
+    return nothing
 end
 
 # Weighted mean of `x` over its last (time) dimension into `out`, availability into `wout`.
 function _time_mean!(out, wout, x, xw, tw, nexpected, threshold)
-    dim = ndims(x)
-    st = _weighted_moments(x, xw, tw, dim, nexpected; order=1)
-    _store!(
-        out, wout, dropdims(st.mean; dims=dim), dropdims(st.fraction; dims=dim), threshold
-    )
+    nt = size(x, ndims(x))
+    _tforeach(CartesianIndices(out)) do I
+        s = 0.0
+        sw = 0.0
+        n = 0
+        @inbounds for k in 1:nt
+            v = x[I, k]
+            a = _avail(xw, I, k)
+            (isnan(v) || !(a > 0)) && continue
+            w = a * _tweight(tw, k)
+            s += w * v
+            sw += w
+            n += 1
+        end
+        return _store1!(out, wout, I, s / sw, n / nexpected, threshold)
+    end
     return nothing
 end
 
 # Multi-year statistics of `x[…, t]` over the last dimension of `x`.
-function _multiyear!(moa, soa, w_moa, ska, kua, x, xw, t, tw, threshold)
-    dim = ndims(x)
-    xs = selectdim(x, dim, t)
-    xws = xw === nothing ? nothing : selectdim(xw, dim, t)
+function _multiyear!(moa, soa, w_moa, ska, kua, x, xw, t, tw, threshold, corrected)
+    nt = length(t)
     higher = ska !== nothing || kua !== nothing
-    st = _weighted_moments(xs, xws, tw, dim, length(t); higher=higher)
-    invalid = dropdims(st.fraction .* 100 .< threshold; dims=dim)
-    nanif(v) = ifelse.(invalid, NaN, dropdims(v; dims=dim))
-    moa .= nanif(st.mean)
-    soa .= nanif(sqrt.(st.m2))
-    w_moa .= ifelse.(invalid, 0, dropdims(st.fraction; dims=dim))
-    ska === nothing || (ska .= nanif(st.m3 ./ st.m2 .^ 1.5))
-    kua === nothing || (kua .= nanif(st.m4 ./ st.m2 .^ 2 .- 3))
-    return nothing
-end
-
-# Store `values` and availability `fraction`, applying the threshold.
-function _store!(out, wout, values, fraction, threshold)
-    invalid = fraction .* 100 .< threshold
-    out .= ifelse.(invalid, NaN, values)
-    wout .= ifelse.(invalid, 0, fraction)
+    _tforeach(CartesianIndices(moa)) do I
+        s = 0.0
+        sw = 0.0
+        sw2 = 0.0
+        n = 0
+        @inbounds for (k, tk) in enumerate(t)
+            v = x[I, tk]
+            a = _avail(xw, I, tk)
+            (isnan(v) || !(a > 0)) && continue
+            w = a * _tweight(tw, k)
+            s += w * v
+            sw += w
+            sw2 += w^2
+            n += 1
+        end
+        fraction = n / nt
+        if fraction * 100 < threshold
+            moa[I] = NaN
+            soa[I] = NaN
+            w_moa[I] = 0
+            ska === nothing || (ska[I] = NaN)
+            kua === nothing || (kua[I] = NaN)
+            return nothing
+        end
+        mu = s / sw
+        m2 = 0.0
+        m3 = 0.0
+        m4 = 0.0
+        @inbounds for (k, tk) in enumerate(t)
+            v = x[I, tk]
+            a = _avail(xw, I, tk)
+            (isnan(v) || !(a > 0)) && continue
+            w = a * _tweight(tw, k)
+            d = v - mu
+            m2 += w * d^2
+            if higher
+                m3 += w * d^3
+                m4 += w * d^4
+            end
+        end
+        var_pop = m2 / sw
+        moa[I] = mu
+        soa[I] = sqrt(corrected ? _corrected_var(var_pop, sw, sw2) : var_pop)
+        w_moa[I] = fraction
+        ska === nothing || (ska[I] = (m3 / sw) / var_pop^1.5)
+        kua === nothing || (kua[I] = (m4 / sw) / var_pop^2 - 3)
+        return nothing
+    end
     return nothing
 end
 
