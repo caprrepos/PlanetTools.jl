@@ -48,16 +48,14 @@ include("PlottingTools.jl")
 include("ReadWritePlanet.jl")
 include("StatisticUtils.jl")
 
-# Future modules (uncomment as they are developed)
-# include("AerosolOptics.jl")
-# include("DustEmission.jl")
-# include("MarsDynamics.jl")
-# include("RadiativeTransfer.jl")
-# include("DataIO.jl")
-# include("Diagnostics.jl")
-# include("Validation.jl")
-
 # Make submodules publicly available at PlanetTools namespace
 using .Constructors
+using .DerivePhysicsVariablesModelE
+using .PlanetAerosolUtils
+using .PlanetDustUtils
+using .PlanetStatistics
+using .PlottingTools
+using .ReadWritePlanet
+using .StatisticUtils
 
 end  # module PlanetTools
