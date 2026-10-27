@@ -1,6 +1,6 @@
 name = "PlanetTools"
 uuid = "6e134580-676a-4416-8bb0-db5b9bd9bc08"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Jan P. Perlwitz <jan.p.perlwitz@caprllc.com>"]
 
 [deps]
