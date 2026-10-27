@@ -180,9 +180,12 @@ Build the documentation locally:
 julia --project=docs -e 'using Pkg; Pkg.instantiate(); include("docs/make.jl")'
 ```
 
+Benchmarks of the main functions, and how to compare revisions and plot the results, are
+described in [`benchmark/README.md`](benchmark/README.md).
+
 The CI workflow runs the tests on the minimum supported Julia version and the upcoming
-release, builds and deploys the documentation, and checks the licenses of all dependencies
-on Linux, macOS, and Windows.
+release, builds and deploys the documentation, checks the licenses of all dependencies
+on Linux, macOS, and Windows, and benchmarks pull requests against `main`.
 
 ## License
 

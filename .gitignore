@@ -5,3 +5,11 @@
 /docs/Manifest*.toml
 /docs/build/
 .ipynb_checkpoints*
+/benchmark/plot/Manifest*.toml
+/benchmark/results/
+/benchmark/*.png
+/benchmark/*.svg
+/benchmark/*.pdf
+/benchmark/*.png.md
+/benchmark/*.svg.md
+/benchmark/*.pdf.md

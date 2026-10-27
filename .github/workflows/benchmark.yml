@@ -1,0 +1,43 @@
+## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
+##   used from 2026-10-27 to 2026-10-27
+
+# Benchmarks every pull request against main with AirspeedVelocity.jl. The comparison table
+# is shown in the job summary; the figure and table from benchmark/plot/plot_benchmarks.jl
+# are uploaded as the artifact "benchmark-results". The benchmark script is taken from main,
+# so that both revisions run the same benchmarks (new benchmarks take effect after merging).
+name: Benchmark
+on:
+  pull_request:
+    branches:
+      - main
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  benchmark:
+    name: Benchmark PR against main
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # Work around the "Unknown package" error of Pkg in Julia 1.13.2 (Pkg.jl issue #4866).
+      JULIA_PKG_PRECOMPILE_AUTO: 0
+    steps:
+      - uses: MilesCranmer/AirspeedVelocity.jl@action-v1
+        with:
+          julia-version: '1.13'
+          job-summary: 'true'
+          # Fixed thread count, so that results of different runs are comparable.
+          exeflags: '--threads=2'
+      - name: Plot results
+        run: |
+          julia --color=yes --project=benchmark/plot -e 'using Pkg; Pkg.instantiate()'
+          julia --color=yes --project=benchmark/plot benchmark/plot/plot_benchmarks.jl \
+            --baseline=main --output=benchmark_results.png results/
+      - name: Upload figure and table
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-results
+          path: |
+            benchmark_results.png
+            benchmark_results.png.md
+            results/
