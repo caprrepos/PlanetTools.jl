@@ -3,8 +3,11 @@ on:
   push:
     branches:
       - main
+      - develop-claude
     tags: ['*']
   pull_request:
+    branches:
+      - main
   workflow_dispatch:
 concurrency:
   # Skip intermediate builds: always.
