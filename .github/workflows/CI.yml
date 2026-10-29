@@ -90,9 +90,6 @@ jobs:
       actions: write # needed to allow julia-actions/cache to proactively delete old caches that it has created
       contents: write
       statuses: write
-    env:
-      # Work around the "Unknown package" error of Pkg in Julia 1.13.2 (Pkg.jl issue #4866).
-      JULIA_PKG_PRECOMPILE_AUTO: 0
     steps:
       - uses: actions/checkout@v6
       - uses: julia-actions/setup-julia@v3
