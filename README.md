@@ -11,7 +11,8 @@ processing and plotting of output from simulations with planetary models. It has
 developed with focus on simulations done with NASA GISS's ModelE and its exoplanet version,
 ROCKE-3D: reading and writing NetCDF output, deriving new variables, area-weighted and
 temporal statistics, trends and their significance, ensemble statistics, aerosol and dust
-size distributions, and plotting of fields with missing data.
+size distributions, and plotting of fields with missing data. The package is work in
+progress and being used in ongoing scientific research projects of the author.
 
 ## Features
 
@@ -36,12 +37,11 @@ e.g. `?calc_weighted_mean`.
 
 ## Installation
 
-PlanetTools requires Julia 1.13 or later. It is not registered in the General registry;
-install it from GitHub:
+PlanetTools requires Julia 1.10 or later.
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/caprrepos/PlanetTools.jl")
+Pkg.add("PlanetTools")
 ```
 
 The plotting functions `compose_palette` and `finite_contour!` live in a
@@ -77,6 +77,7 @@ using PlanetTools.ReadWritePlanet: readnetcdf
 using PlanetTools.StatisticUtils: calc_latitude_weights, calc_weighted_mean
 
 # Monthly output files "<MON><YYYY>.<gname><run>.nc" of run E1 for Jan. and Feb. 2000.
+datadir = "/your/datadir"
 files = fnames_modele(2000, 1, 2000, 2, "aij", ["E1"])  # 1×2 Matrix{String}
 
 r = readnetcdf(joinpath(datadir, files[1, 1]), ["tsurf", "lat"])
@@ -96,7 +97,7 @@ calc_weighted_mean(tsurf, w; dims=1)  # zonal mean, size (1, lat)
 ```julia
 using PlanetTools.PlanetDustUtils: calc_fractional_dust_masses_bft
 
-bounds = [0.2, 2.0, 4.0, 8.0, 16.0]       # bin bounds as diameters in µm, as in ModelE
+bounds = [0.1, 2.0, 4.0, 8.0, 16.0]       # bin bounds as diameters in µm, as in ModelE
 calc_fractional_dust_masses_bft(bounds)  # ≈ [0.045, 0.143, 0.388, 0.425]
 ```
 
@@ -200,8 +201,9 @@ redistribute binaries, e.g. in a sysimage or container.
 
 ## Citing
 
-If you use PlanetTools in your research, please cite it with the entry in
-[`CITATION.bib`](CITATION.bib).
+If you use PlanetTools in your work, please cite it with the entry from
+[`CITATION.bib`](CITATION.bib) and for the applied methods the
+original scientific references.
 
 ## References
 
