@@ -28,9 +28,7 @@ jobs:
       matrix:
         version:
           - '1.10' # Minimum supported version (julia compat in Project.toml).
-          - '1.11'
-          - '1.12'
-          - '1.13'
+          - '1'
           - 'pre'
         os:
           - ubuntu-latest
