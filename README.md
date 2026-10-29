@@ -98,8 +98,8 @@ calc_weighted_mean(tsurf, w; dims=1)  # zonal mean, size (1, lat)
 ```julia
 using PlanetTools.PlanetDustUtils: calc_fractional_dust_masses_bft
 
-bounds = [0.1, 2.0, 4.0, 8.0, 16.0]       # bin bounds as diameters in µm, as in ModelE
-calc_fractional_dust_masses_bft(bounds)  # ≈ [0.045, 0.143, 0.388, 0.425]
+bounds = [0.1, 2.0, 4.0, 8.0, 16.0]      # bounds as diameters in µm
+calc_fractional_dust_masses_bft(bounds)  # ≈ [0.044, 0.143, 0.388, 0.425]
 ```
 
 ### A map with a diverging palette and isolines over missing data
