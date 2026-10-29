@@ -40,7 +40,7 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
@@ -70,7 +70,7 @@ jobs:
           # Pinned so that the inventory matches the committed THIRD_PARTY_LICENSES.md;
           # raise together with the julia compat and regenerate that file.
           version: '1.13'
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
       # Fails if a dependency has a license that is neither clearly permissive nor
       # reviewed in scripts/license_check.jl.
       - name: Check dependency licenses
@@ -95,7 +95,7 @@ jobs:
       - uses: julia-actions/setup-julia@v3
         with:
           version: '1.13'
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
       # Runs docs/make.jl, which also runs all doctests (with Makie loaded for the extension).
       - uses: julia-actions/julia-docdeploy@v1
