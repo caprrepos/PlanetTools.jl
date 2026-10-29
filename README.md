@@ -9,10 +9,11 @@
 The package contains helper functions that can be applied in Julia scripts for data
 processing and plotting of output from simulations with planetary models. It has been
 developed with focus on simulations done with NASA GISS's ModelE and its exoplanet version,
-ROCKE-3D: reading and writing NetCDF output, deriving new variables, area-weighted and
-temporal statistics, trends and their significance, ensemble statistics, aerosol and dust
-size distributions, and plotting of fields with missing data. The package is work in
-progress and being used in ongoing scientific research projects of the author.
+ROCKE-3D, but its usefulness is not necessarily confined to this. The collection of tools
+includes reading and writing NetCDF output, deriving new variables, area-weighted and temporal
+statistics, trends and their significance, ensemble statistics, aerosol and dust size
+distributions, and plotting of fields with missing data. The package is work in progress,
+and it is being used in ongoing scientific research projects of the author.
 
 ## Features
 
