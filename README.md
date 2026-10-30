@@ -12,8 +12,7 @@ developed with focus on simulations done with NASA GISS's ModelE and its exoplan
 ROCKE-3D, but its usefulness is not necessarily confined to this. The collection of tools
 includes reading and writing NetCDF output, deriving new variables, area-weighted and temporal
 statistics, trends and their significance, ensemble statistics, aerosol and dust size
-distributions, and plotting of fields with missing data. The package is work in progress,
-and it is being used in ongoing scientific research projects of the author.
+distributions, and plotting of fields with missing data.
 
 ## Features
 
@@ -160,34 +159,8 @@ save("anomaly.png", fig)
 
 ## Development
 
-Run the tests (including all doctests):
-
-```julia
-using Pkg
-Pkg.test("PlanetTools")
-```
-
-The code follows the [Blue style](https://github.com/JuliaDiff/BlueStyle), checked in CI with
-JuliaFormatter. Keep JuliaFormatter in its own environment rather than in the package's
-dependencies:
-
-```sh
-julia --project=@formatter -e 'using Pkg; Pkg.add(name="JuliaFormatter", version="2")'
-julia --project=@formatter -e 'using JuliaFormatter; format(".")'
-```
-
-Build the documentation locally:
-
-```sh
-julia --project=docs -e 'using Pkg; Pkg.instantiate(); include("docs/make.jl")'
-```
-
-Benchmarks of the main functions, and how to compare revisions and plot the results, are
-described in [`benchmark/README.md`](benchmark/README.md).
-
-The CI workflow runs the tests on the minimum supported Julia version and the upcoming
-release, builds and deploys the documentation, checks the licenses of all dependencies
-on Linux, macOS, and Windows, and benchmarks pull requests against `main`.
+The package is work in progress, and it is being used in ongoing scientific research
+projects of the author.
 
 ## License
 
