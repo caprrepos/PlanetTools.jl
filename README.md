@@ -41,6 +41,8 @@ PlanetTools requires Julia 1.10 or later.
 
 ```julia
 using Pkg
+Pkg.add(url="https://github.com/caprrepos/PlanetTools.jl")
+# or, when it has become part of the General Registry:
 Pkg.add("PlanetTools")
 ```
 
