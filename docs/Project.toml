@@ -12,4 +12,5 @@ PlanetTools = {path = ".."}
 Dates = "1.11"
 ColorSchemes = "3.31.0"
 Documenter = "1"
+Makie = "0.24.16"
 julia = "1.10"
