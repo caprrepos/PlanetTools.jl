@@ -9,5 +9,6 @@ PlanetTools = "6e134580-676a-4416-8bb0-db5b9bd9bc08"
 PlanetTools = {path = ".."}
 
 [compat]
+ColorSchemes = "3.31.0"
 Documenter = "1"
 julia = "1.10"
