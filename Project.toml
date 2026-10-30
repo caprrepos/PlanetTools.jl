@@ -23,6 +23,7 @@ PlanetToolsMakieExt = ["ColorSchemes", "Contour", "Makie"]
 BenchmarkTools = "1"
 ColorSchemes = "3.20"
 Contour = "0.6"
+Dates = "1.10"
 Documenter = "1"
 Interpolations = "0.16"
 Makie = "0.24"
