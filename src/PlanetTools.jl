@@ -1,19 +1,22 @@
+## Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+##         (jan.p.perlwitz@caprllc.com)
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
 ##   used from 2026-10-25 to 2026-10-27
 
 """
     PlanetTools
 
-Tools for post-processing and analyzing output of the climate models GISS ModelE and
-ROCKE-3D, for Earth and other planets. The functions are organized in submodules and all
-exported by PlanetTools, so `using PlanetTools` makes them available; to load only some,
-use a submodule, e.g. `using PlanetTools.StatisticUtils`.
+Tools for post-processing and analyzing output of climate models for Earth and other
+planets. The functions are organized in submodules and all exported by PlanetTools,
+so `using PlanetTools` makes them available; to load only some, use a submodule, e.g.
+`using PlanetTools.StatisticUtils`. Some functions are specifically designed for
+ModelE and ROCKE-3D developed at NASA GISS, others are more generally usable.
 
 # Submodules
 - [`Constructors`](@ref PlanetTools.Constructors): ModelE output file names and discrete
     color palettes.
-- [`DerivePhysicsVariablesModelE`](@ref PlanetTools.DerivePhysicsVariablesModelE): sums,
-    differences, and quotients of variables, and cumulative dust size classes.
+- [`DerivePhysicsVariables`](@ref PlanetTools.DerivePhysicsVariables): sums, differences,
+     and quotients of variables, and cumulative dust size classes.
 - [`PlanetAerosolUtils`](@ref PlanetTools.PlanetAerosolUtils): effective radius of binned
     size distributions and log-log interpolation of optical lookup tables.
 - [`PlanetDustUtils`](@ref PlanetTools.PlanetDustUtils): size distribution of emitted dust
@@ -41,7 +44,7 @@ module PlanetTools
 
 # Include submodules in dependency order
 include("Constructors.jl")
-include("DerivePhysicsVariablesModelE.jl")
+include("DerivePhysicsVariables.jl")
 include("PlanetAerosolUtils.jl")
 include("PlanetDustUtils.jl")
 include("PlanetStatistics.jl")
@@ -53,7 +56,7 @@ include("StatisticUtils.jl")
 # that `using PlanetTools` provides all of them. Keep the export lists in sync with those of
 # the submodules (checked in test/runtests.jl).
 using .Constructors
-using .DerivePhysicsVariablesModelE
+using .DerivePhysicsVariables
 using .PlanetAerosolUtils
 using .PlanetDustUtils
 using .PlanetStatistics
@@ -63,7 +66,7 @@ using .StatisticUtils
 
 # Constructors
 export fnames_modele, compose_palette
-# DerivePhysicsVariablesModelE
+# DerivePhysicsVariables
 export accumulate_variables, subtract_variables, divide_variables
 export accumulate_dust_masses_modele, accumulate_dust_optics_modele
 # PlanetAerosolUtils

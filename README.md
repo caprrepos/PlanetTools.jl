@@ -21,7 +21,7 @@ The functions are organized in submodules:
 | Submodule | Purpose | Main functions |
 |:--|:--|:--|
 | `Constructors` | ModelE output file names, discrete color palettes | `fnames_modele`, `compose_palette`¹ |
-| `DerivePhysicsVariablesModelE` | Sums, differences, and quotients of variables; cumulative dust size classes | `accumulate_variables`, `subtract_variables`, `divide_variables`, `accumulate_dust_masses_modele`, `accumulate_dust_optics_modele` |
+| `DerivePhysicsVariables` | Sums, differences, and quotients of variables; cumulative dust size classes | `accumulate_variables`, `subtract_variables`, `divide_variables`, `accumulate_dust_masses_modele`, `accumulate_dust_optics_modele` |
 | `PlanetAerosolUtils` | Effective radius of binned size distributions; log-log interpolation of optical lookup tables | `calc_size_integrated_effective_radius`, `interpolate_extinction_coeff_log` |
 | `PlanetDustUtils` | Size distribution of emitted dust from brittle fragmentation theory (Kok, 2011) | `calc_fractional_dust_masses_bft` |
 | `PlanetStatistics` | Zonal and global means, annual and seasonal time series, multi-year statistics, anomalies, trends with significance, ensemble statistics | `calc_planet_means!`, `calc_annual_mean_ts!`, `calc_seasonal_mean_ts!`, `calc_multiyear_stats!`, `calc_anomalies!`, `calc_linear_trends!`, `calc_linear_trends_sig!`, `generate_significance_mask!`, `calc_ensemble_stats!`, `calc_ensemble_agreement!` |
@@ -71,7 +71,7 @@ using PlanetTools: readnetcdf        # a single function
 The examples below import the functions they use explicitly, so that it is clear where
 each function comes from.
 
-### Global and zonal means of a ModelE field
+### Global and zonal means of a field
 
 ```julia
 using PlanetTools.Constructors: fnames_modele
@@ -149,7 +149,7 @@ save("anomaly.png", fig)
     valid data for a result.
 - **Standard deviations** are sample standard deviations (Bessel's correction generalized
     to weights) unless `corrected=false` is passed.
-- **Particle sizes**: dust size bins of ModelE are defined by **diameters** (in µm), which
+- **Particle sizes**: dust size bins as **diameters** (in µm), which
     `calc_fractional_dust_masses_bft` expects. Effective radii use **radii**: convert bin
     diameters before calling `calc_size_integrated_effective_radius`, e.g.
     `radius = sqrt.(dlow .* dhigh) ./ 2`.

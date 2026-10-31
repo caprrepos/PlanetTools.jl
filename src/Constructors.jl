@@ -4,11 +4,11 @@
 """
     PlanetTools.Constructors
 
-Submodule of PlanetTools with utility constructors for ModelE / ROCKE-3D post-processing
-and plotting: [`fnames_modele`](@ref) builds monthly output file names and
-[`compose_palette`](@ref) builds discrete color palettes for binned plots. Load it with
-`using PlanetTools.Constructors`. `compose_palette` is defined in a package extension that
-is loaded once Makie is loaded (`using Makie`, `using CairoMakie`, …).
+Submodule of PlanetTools with name constructors: [`fnames_modele`](@ref) builds monthly
+output file names for ModelE / ROCKE-3D post-processing. [`compose_palette`](@ref) builds
+discrete color palettes for binned plots. Load it with `using PlanetTools.Constructors`.
+`compose_palette` is defined in a package extension that is loaded once Makie is loaded
+(`using Makie`, `using CairoMakie`, …).
 """
 module Constructors
 

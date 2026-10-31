@@ -1,7 +1,9 @@
+## Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+##         (jan.p.perlwitz@caprllc.com)
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
 ##   used from 2026-10-24 to 2026-10-24
 
-# Tests for `DerivePhysicsVariablesModelE`. Imports are in `runtests.jl`.
+# Tests for `DerivePhysicsVariables`. Imports are in `runtests.jl`.
 
 # Data with value 100 * variable index + linear index of the remaining dimensions, so that
 # every variable and grid point is distinct.

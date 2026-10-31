@@ -9,7 +9,7 @@ using Makie: Makie
 using NCDatasets: NCDatasets, NCDataset
 using PlanetTools
 using PlanetTools.Constructors
-using PlanetTools.DerivePhysicsVariablesModelE
+using PlanetTools.DerivePhysicsVariables
 using PlanetTools.PlanetAerosolUtils
 using PlanetTools.PlanetDustUtils
 using PlanetTools.PlanetStatistics
@@ -26,8 +26,8 @@ using Test
         include("constructors_tests.jl")
     end
 
-    @testset "DerivePhysicsVariablesModelE" begin
-        include("derivephysicsvariablesmodele_tests.jl")
+    @testset "DerivePhysicsVariables" begin
+        include("derivephysicsvariables_tests.jl")
     end
 
     @testset "PlanetAerosolUtils" begin
@@ -58,7 +58,7 @@ using Test
         # PlanetTools exports every name exported by its submodules.
         submodules = (
             PlanetTools.Constructors,
-            PlanetTools.DerivePhysicsVariablesModelE,
+            PlanetTools.DerivePhysicsVariables,
             PlanetTools.PlanetAerosolUtils,
             PlanetTools.PlanetDustUtils,
             PlanetTools.PlanetStatistics,
@@ -84,7 +84,7 @@ using Test
 
     @testset "Doctests" begin
         setup = quote
-            using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariablesModelE
+            using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariables
             using PlanetTools.PlanetAerosolUtils, PlanetTools.PlanetDustUtils
             using PlanetTools.PlanetStatistics, PlanetTools.PlottingTools
             using PlanetTools.ReadWritePlanet, PlanetTools.StatisticUtils

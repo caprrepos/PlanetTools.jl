@@ -212,7 +212,7 @@ let rng = Xoshiro(5),
     )
 end
 
-let bounds = [0.1, 0.2, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0]  # ModelE-like bin diameters.
+let bounds = [0.1, 0.2, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0]  # dust mass bin diameters.
     g = SUITE["PlanetDustUtils"] = BenchmarkGroup()
     g["calc_fractional_dust_masses_bft"] = @benchmarkable calc_fractional_dust_masses_bft(
         $bounds

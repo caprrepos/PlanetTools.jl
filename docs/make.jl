@@ -11,7 +11,7 @@ using PlanetTools
 
 # Shared with test/runtests.jl, which runs the same doctests in the package tests.
 const DOCTEST_SETUP = quote
-    using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariablesModelE
+    using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariables
     using PlanetTools.PlanetAerosolUtils, PlanetTools.PlanetDustUtils
     using PlanetTools.PlanetStatistics, PlanetTools.PlottingTools
     using PlanetTools.ReadWritePlanet, PlanetTools.StatisticUtils
@@ -21,7 +21,7 @@ DocMeta.setdocmeta!(PlanetTools, :DocTestSetup, DOCTEST_SETUP; recursive=true)
 
 const SUBMODULES = [
     "Constructors",
-    "DerivePhysicsVariablesModelE",
+    "DerivePhysicsVariables",
     "PlanetAerosolUtils",
     "PlanetDustUtils",
     "PlanetStatistics",
