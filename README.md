@@ -44,9 +44,6 @@ using Pkg
 Pkg.add("PlanetTools")
 ```
 
-The development version is installed with
-`Pkg.add(url="https://github.com/caprrepos/PlanetTools.jl")`.
-
 The plotting functions `compose_palette` and `finite_contour!` live in a
 [package extension](https://pkgdocs.julialang.org/v1/creating-packages/#Conditional-loading-of-code-in-packages-(Extensions))
 that is loaded automatically once Makie is loaded. To use them, add a Makie backend, and
