@@ -1,5 +1,7 @@
+## Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+##         (jan.p.perlwitz@caprllc.com)
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-25 to 2026-10-25
+##   used from 2026-10-25 to 2026-10-31
 
 # Build the documentation and run the doctests:
 #     julia --project=docs -e 'using Pkg; Pkg.instantiate(); include("docs/make.jl")'
@@ -11,7 +13,7 @@ using PlanetTools
 
 # Shared with test/runtests.jl, which runs the same doctests in the package tests.
 const DOCTEST_SETUP = quote
-    using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariablesModelE
+    using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariables
     using PlanetTools.PlanetAerosolUtils, PlanetTools.PlanetDustUtils
     using PlanetTools.PlanetStatistics, PlanetTools.PlottingTools
     using PlanetTools.ReadWritePlanet, PlanetTools.StatisticUtils
@@ -21,7 +23,7 @@ DocMeta.setdocmeta!(PlanetTools, :DocTestSetup, DOCTEST_SETUP; recursive=true)
 
 const SUBMODULES = [
     "Constructors",
-    "DerivePhysicsVariablesModelE",
+    "DerivePhysicsVariables",
     "PlanetAerosolUtils",
     "PlanetDustUtils",
     "PlanetStatistics",

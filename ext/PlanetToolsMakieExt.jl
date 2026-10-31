@@ -1,5 +1,7 @@
+## Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+##         (jan.p.perlwitz@caprllc.com)
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-04 to 2026-10-25
+##   used from 2026-10-04 to 2026-10-31
 
 # Package extension with the Makie-based methods of PlanetTools; loaded automatically
 # once Makie (which brings ColorSchemes and Contour) is loaded together with PlanetTools.
@@ -8,10 +10,9 @@ module PlanetToolsMakieExt
 using ColorSchemes: ColorScheme, colorschemes
 using Contour: Contour
 using Makie: Makie, cgrad, lines!
-using PlanetTools.Constructors: Constructors
 using PlanetTools.PlottingTools: PlottingTools
 
-# --- Constructors.compose_palette ---
+# --- PlottingTools.compose_palette ---
 
 # Return a ColorScheme for a palette given as a ColorScheme, Symbol, or String.
 _scheme(p::ColorScheme) = p
@@ -33,7 +34,7 @@ function _sample(p, n::Integer)
     return Makie.RGBAf[Makie.to_color(get(cs, xi)) for xi in x]
 end
 
-function Constructors.compose_palette(
+function PlottingTools.compose_palette(
     breaks::AbstractVector{<:Real};
     palette1=nothing,
     midcolor=nothing,

@@ -1,5 +1,7 @@
+## Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+##         (jan.p.perlwitz@caprllc.com)
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-24 to 2026-10-27
+##   used from 2026-10-24 to 2026-10-31
 
 using ColorSchemes: colorschemes
 using Dates: Dates, Date, Month, Year, daysinmonth, month, year
@@ -9,7 +11,7 @@ using Makie: Makie
 using NCDatasets: NCDatasets, NCDataset
 using PlanetTools
 using PlanetTools.Constructors
-using PlanetTools.DerivePhysicsVariablesModelE
+using PlanetTools.DerivePhysicsVariables
 using PlanetTools.PlanetAerosolUtils
 using PlanetTools.PlanetDustUtils
 using PlanetTools.PlanetStatistics
@@ -26,8 +28,8 @@ using Test
         include("constructors_tests.jl")
     end
 
-    @testset "DerivePhysicsVariablesModelE" begin
-        include("derivephysicsvariablesmodele_tests.jl")
+    @testset "DerivePhysicsVariables" begin
+        include("derivephysicsvariables_tests.jl")
     end
 
     @testset "PlanetAerosolUtils" begin
@@ -54,11 +56,42 @@ using Test
         include("statisticutils_tests.jl")
     end
 
+    @testset "Deprecated submodule name" begin
+        # DerivePhysicsVariablesModelE is the old name of DerivePhysicsVariables. Binding
+        # deprecations print to stderr, not to the logger, so the warning is suppressed here.
+        @test Base.isdeprecated(PlanetTools, :DerivePhysicsVariablesModelE)
+        @test !(:DerivePhysicsVariablesModelE in names(PlanetTools))
+        old = redirect_stderr(devnull) do
+            getglobal(PlanetTools, :DerivePhysicsVariablesModelE)
+        end
+        @test old === PlanetTools.DerivePhysicsVariables
+        m = Module()
+        redirect_stderr(devnull) do
+            Core.eval(m, :(using PlanetTools.DerivePhysicsVariablesModelE))
+        end
+        @test getglobal(m, :accumulate_variables) === accumulate_variables
+    end
+
+    @testset "Deprecated location of compose_palette" begin
+        # compose_palette moved from Constructors to PlottingTools after v0.2.1.
+        C = PlanetTools.Constructors
+        @test Base.isdeprecated(C, :compose_palette)
+        old = redirect_stderr(devnull) do
+            getglobal(C, :compose_palette)
+        end
+        @test old === PlanetTools.PlottingTools.compose_palette
+        m = Module()
+        redirect_stderr(devnull) do
+            Core.eval(m, :(using PlanetTools.Constructors: compose_palette))
+        end
+        @test getglobal(m, :compose_palette) === compose_palette
+    end
+
     @testset "Exports" begin
         # PlanetTools exports every name exported by its submodules.
         submodules = (
             PlanetTools.Constructors,
-            PlanetTools.DerivePhysicsVariablesModelE,
+            PlanetTools.DerivePhysicsVariables,
             PlanetTools.PlanetAerosolUtils,
             PlanetTools.PlanetDustUtils,
             PlanetTools.PlanetStatistics,
@@ -68,7 +101,7 @@ using Test
         )
         exported = Set(names(PlanetTools))
         for m in submodules, n in names(m)
-            n === nameof(m) && continue
+            (n === nameof(m) || Base.isdeprecated(m, n)) && continue
             @test n in exported
             @test getfield(PlanetTools, n) === getfield(m, n)
         end
@@ -84,7 +117,7 @@ using Test
 
     @testset "Doctests" begin
         setup = quote
-            using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariablesModelE
+            using PlanetTools.Constructors, PlanetTools.DerivePhysicsVariables
             using PlanetTools.PlanetAerosolUtils, PlanetTools.PlanetDustUtils
             using PlanetTools.PlanetStatistics, PlanetTools.PlottingTools
             using PlanetTools.ReadWritePlanet, PlanetTools.StatisticUtils

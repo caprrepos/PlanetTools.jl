@@ -20,12 +20,12 @@ The functions are organized in submodules:
 
 | Submodule | Purpose | Main functions |
 |:--|:--|:--|
-| `Constructors` | ModelE output file names, discrete color palettes | `fnames_modele`, `compose_palette`¹ |
-| `DerivePhysicsVariablesModelE` | Sums, differences, and quotients of variables; cumulative dust size classes | `accumulate_variables`, `subtract_variables`, `divide_variables`, `accumulate_dust_masses_modele`, `accumulate_dust_optics_modele` |
+| `Constructors` | ModelE output file names | `fnames_modele` |
+| `DerivePhysicsVariables` | Sums, differences, and quotients of variables; cumulative dust size classes | `accumulate_variables`, `subtract_variables`, `divide_variables`, `accumulate_dust_masses_modele`, `accumulate_dust_optics_modele` |
 | `PlanetAerosolUtils` | Effective radius of binned size distributions; log-log interpolation of optical lookup tables | `calc_size_integrated_effective_radius`, `interpolate_extinction_coeff_log` |
 | `PlanetDustUtils` | Size distribution of emitted dust from brittle fragmentation theory (Kok, 2011) | `calc_fractional_dust_masses_bft` |
 | `PlanetStatistics` | Zonal and global means, annual and seasonal time series, multi-year statistics, anomalies, trends with significance, ensemble statistics | `calc_planet_means!`, `calc_annual_mean_ts!`, `calc_seasonal_mean_ts!`, `calc_multiyear_stats!`, `calc_anomalies!`, `calc_linear_trends!`, `calc_linear_trends_sig!`, `generate_significance_mask!`, `calc_ensemble_stats!`, `calc_ensemble_agreement!` |
-| `PlottingTools` | Isolines of fields with missing data, also on GeoMakie axes | `finite_contour!`¹ |
+| `PlottingTools` | Discrete color palettes; isolines of fields with missing data, also on GeoMakie axes | `compose_palette`¹, `finite_contour!`¹ |
 | `ReadWritePlanet` | NetCDF input and output with metadata, missing values, and planetary calendars | `readnetcdf`, `writenetcdf` |
 | `StatisticUtils` | Weighted mean, standard deviation, and pattern correlation of gridded fields; Fisher z-transform and correlation significance; latitude weights | `calc_weighted_mean`, `calc_weighted_std`, `calc_weighted_pattern_corr`, `fisher_z_transform`, `fisher_z_inv`, `calc_correlation_significance`, `calc_latitude_weights` |
 
@@ -37,12 +37,10 @@ e.g. `?calc_weighted_mean`.
 
 ## Installation
 
-PlanetTools requires Julia 1.10 or later.
+PlanetTools requires Julia 1.10 or later and is registered in the Julia General registry:
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/caprrepos/PlanetTools.jl")
-# or, when it has become part of the General Registry:
 Pkg.add("PlanetTools")
 ```
 
@@ -71,7 +69,7 @@ using PlanetTools: readnetcdf        # a single function
 The examples below import the functions they use explicitly, so that it is clear where
 each function comes from.
 
-### Global and zonal means of a ModelE field
+### Global and zonal means of a field
 
 ```julia
 using PlanetTools.Constructors: fnames_modele
@@ -108,8 +106,7 @@ calc_fractional_dust_masses_bft(bounds)  # ≈ [0.044, 0.143, 0.388, 0.425]
 ```julia
 using CairoMakie
 using ColorSchemes: colorschemes
-using PlanetTools.Constructors: compose_palette
-using PlanetTools.PlottingTools: finite_contour!
+using PlanetTools.PlottingTools: compose_palette, finite_contour!
 
 lon, lat = -177.5:5.0:177.5, -87.5:5.0:87.5
 anom = [6cosd(φ) * sind(λ) for λ in lon, φ in lat]  # (lon, lat), e.g. an anomaly in K
@@ -149,7 +146,7 @@ save("anomaly.png", fig)
     valid data for a result.
 - **Standard deviations** are sample standard deviations (Bessel's correction generalized
     to weights) unless `corrected=false` is passed.
-- **Particle sizes**: dust size bins of ModelE are defined by **diameters** (in µm), which
+- **Particle sizes**: dust size bins are given as **diameters** (in µm), as
     `calc_fractional_dust_masses_bft` expects. Effective radii use **radii**: convert bin
     diameters before calling `calc_size_integrated_effective_radius`, e.g.
     `radius = sqrt.(dlow .* dhigh) ./ 2`.

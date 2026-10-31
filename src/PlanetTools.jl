@@ -1,26 +1,29 @@
+## Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+##         (jan.p.perlwitz@caprllc.com)
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-25 to 2026-10-27
+##   used from 2026-10-25 to 2026-10-31
 
 """
     PlanetTools
 
-Tools for post-processing and analyzing output of the climate models GISS ModelE and
-ROCKE-3D, for Earth and other planets. The functions are organized in submodules and all
-exported by PlanetTools, so `using PlanetTools` makes them available; to load only some,
-use a submodule, e.g. `using PlanetTools.StatisticUtils`.
+Tools for post-processing and analyzing output of climate models for Earth and other
+planets. The functions are organized in submodules and all exported by PlanetTools,
+so `using PlanetTools` makes them available; to load only some, use a submodule, e.g.
+`using PlanetTools.StatisticUtils`. Some functions are specifically designed for
+ModelE and ROCKE-3D developed at NASA GISS, others are more generally usable.
 
 # Submodules
-- [`Constructors`](@ref PlanetTools.Constructors): ModelE output file names and discrete
-    color palettes.
-- [`DerivePhysicsVariablesModelE`](@ref PlanetTools.DerivePhysicsVariablesModelE): sums,
-    differences, and quotients of variables, and cumulative dust size classes.
+- [`Constructors`](@ref PlanetTools.Constructors): ModelE output file names.
+- [`DerivePhysicsVariables`](@ref PlanetTools.DerivePhysicsVariables): sums, differences,
+    and quotients of variables, and cumulative dust size classes.
 - [`PlanetAerosolUtils`](@ref PlanetTools.PlanetAerosolUtils): effective radius of binned
     size distributions and log-log interpolation of optical lookup tables.
 - [`PlanetDustUtils`](@ref PlanetTools.PlanetDustUtils): size distribution of emitted dust
     from brittle fragmentation theory.
 - [`PlanetStatistics`](@ref PlanetTools.PlanetStatistics): spatial means, time series,
     multi-year statistics, anomalies, trends, and ensemble statistics.
-- [`PlottingTools`](@ref PlanetTools.PlottingTools): isolines of fields with missing data.
+- [`PlottingTools`](@ref PlanetTools.PlottingTools): discrete color palettes and isolines
+    of fields with missing data.
 - [`ReadWritePlanet`](@ref PlanetTools.ReadWritePlanet): NetCDF input and output.
 - [`StatisticUtils`](@ref PlanetTools.StatisticUtils): weighted statistics of gridded
     fields, correlation significance, and latitude weights.
@@ -39,13 +42,13 @@ julia> fnames_modele(2010, 12, 2011, 1, "aij", ["E1"])
 """
 module PlanetTools
 
-# Include submodules in dependency order
+# Include submodules in dependency order (Constructors refers to PlottingTools)
+include("PlottingTools.jl")
 include("Constructors.jl")
-include("DerivePhysicsVariablesModelE.jl")
+include("DerivePhysicsVariables.jl")
 include("PlanetAerosolUtils.jl")
 include("PlanetDustUtils.jl")
 include("PlanetStatistics.jl")
-include("PlottingTools.jl")
 include("ReadWritePlanet.jl")
 include("StatisticUtils.jl")
 
@@ -53,7 +56,7 @@ include("StatisticUtils.jl")
 # that `using PlanetTools` provides all of them. Keep the export lists in sync with those of
 # the submodules (checked in test/runtests.jl).
 using .Constructors
-using .DerivePhysicsVariablesModelE
+using .DerivePhysicsVariables
 using .PlanetAerosolUtils
 using .PlanetDustUtils
 using .PlanetStatistics
@@ -61,9 +64,13 @@ using .PlottingTools
 using .ReadWritePlanet
 using .StatisticUtils
 
+# Old name of DerivePhysicsVariables (until v0.2.1), kept for backward compatibility; with
+# `--depwarn=yes` its use issues a deprecation warning. Remove with the next breaking release.
+Base.@deprecate_binding DerivePhysicsVariablesModelE DerivePhysicsVariables false
+
 # Constructors
-export fnames_modele, compose_palette
-# DerivePhysicsVariablesModelE
+export fnames_modele
+# DerivePhysicsVariables
 export accumulate_variables, subtract_variables, divide_variables
 export accumulate_dust_masses_modele, accumulate_dust_optics_modele
 # PlanetAerosolUtils
@@ -76,7 +83,7 @@ export calc_multiyear_stats!, calc_anomalies!
 export calc_linear_trends!, calc_linear_trends_sig!, generate_significance_mask!
 export calc_ensemble_stats!, calc_ensemble_agreement!
 # PlottingTools
-export finite_contour!
+export compose_palette, finite_contour!
 # ReadWritePlanet
 export readnetcdf, writenetcdf
 # StatisticUtils

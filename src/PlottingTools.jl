@@ -1,17 +1,71 @@
+## Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+##         (jan.p.perlwitz@caprllc.com)
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-04 to 2026-10-25
+##   used from 2026-10-04 to 2026-10-31
 
 """
     PlanetTools.PlottingTools
 
 Submodule of PlanetTools with plotting helpers for Makie (including GeoMakie axes):
+[`compose_palette`](@ref) builds discrete color palettes for binned plots, and
 [`finite_contour!`](@ref) draws isolines of fields with missing data. Load it with
 `using PlanetTools.PlottingTools`. The methods are defined in a package extension that is
 loaded once Makie is loaded (`using Makie`, `using CairoMakie`, …).
 """
 module PlottingTools
 
-export finite_contour!
+export compose_palette, finite_contour!
+
+"""
+    compose_palette(breaks; kwargs...) -> Vector{Makie.RGBAf}
+
+Return one color per interval between consecutive `breaks` (`length(breaks) - 1` colors)
+for discrete contour or binned plots, built from one or two color schemes and an optional
+`midcolor`. Requires Makie to be loaded.
+
+With both palettes, the intervals at or below `demarcation` take `palette1`, the interval
+from the last break `≤ demarcation` to the next break takes `midcolor` (or else
+`palette2`), and the intervals above take `palette2`. If that interval does not exist,
+`midcolor` is not used and a warning is issued. With one palette, `midcolor` takes the
+top interval (`palette1`) or the bottom interval (`palette2`). Each palette is sampled
+evenly from its first to its last color; a single sample is its midpoint.
+
+Use `contourf(x, y, z; levels=breaks, colormap=pal)`. For extension bands pass
+`extendlow=first(pal), extendhigh=last(pal)`; `:auto` makes Makie resample the colormap.
+
+# Arguments
+- `breaks::AbstractVector{<:Real}`: finite, strictly increasing, at least two values.
+
+# Keywords
+- `palette1=nothing`: lower palette, a `ColorScheme` or its name as `Symbol`/`String`.
+- `midcolor=nothing`: any color accepted by `Makie.to_color`, e.g. `:white`.
+- `palette2=nothing`: upper palette, same types as `palette1`.
+- `demarcation::Real=1.0`: value separating the palettes; used only if both are given.
+
+# Returns
+- `Vector{Makie.RGBAf}`: colors from the lowest to the highest interval.
+
+# Throws
+- `ArgumentError`: if `breaks` is invalid, no palette is given, or a scheme name is
+    unknown.
+
+See also [`finite_contour!`](@ref).
+
+# Examples
+```jldoctest
+julia> pal = compose_palette(
+           [-2, -1, -0.5, 0.5, 1, 2];
+           palette1=reverse(colorschemes[:Blues]),
+           midcolor=:white,
+           palette2=:Reds,
+           demarcation=0,
+       );
+
+julia> length(pal), pal[3] == Makie.to_color(:white)
+(5, true)
+```
+"""
+function compose_palette end
 
 """
     finite_contour!(ax, x, y, z[, levels]; kwargs...) -> NamedTuple
@@ -76,10 +130,9 @@ function finite_contour! end
 function __init__()
     Base.Experimental.register_error_hint(MethodError) do io, exc, _, _
         ext = Base.get_extension(parentmodule(@__MODULE__), :PlanetToolsMakieExt)
-        if exc.f === finite_contour! && ext === nothing
-            print(
-                io, "\n`finite_contour!` is defined in the Makie extension of PlanetTools: "
-            )
+        if exc.f in (compose_palette, finite_contour!) && ext === nothing
+            print(io, "\n`", nameof(exc.f), "` is defined in the Makie extension of ")
+            print(io, "PlanetTools: ")
             print(io, "run `using Makie` (or CairoMakie, GLMakie) first.")
         end
     end

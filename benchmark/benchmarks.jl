@@ -1,5 +1,7 @@
+## Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+##         (jan.p.perlwitz@caprllc.com)
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-26 to 2026-10-27
+##   used from 2026-10-26 to 2026-10-31
 
 # Benchmark suite of PlanetTools, run with AirspeedVelocity.jl (see benchmark/README.md):
 #     benchpkg PlanetTools --path=. --rev=main,dirty --exeflags="--threads=4"
@@ -212,7 +214,7 @@ let rng = Xoshiro(5),
     )
 end
 
-let bounds = [0.1, 0.2, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0]  # ModelE-like bin diameters.
+let bounds = [0.1, 0.2, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0]  # dust mass bin diameters.
     g = SUITE["PlanetDustUtils"] = BenchmarkGroup()
     g["calc_fractional_dust_masses_bft"] = @benchmarkable calc_fractional_dust_masses_bft(
         $bounds

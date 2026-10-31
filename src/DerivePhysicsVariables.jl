@@ -1,12 +1,14 @@
+## Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+##         (jan.p.perlwitz@caprllc.com)
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-24 to 2026-10-24
+##   used from 2026-10-24 to 2026-10-31
 
 """
-    PlanetTools.DerivePhysicsVariablesModelE
+    PlanetTools.DerivePhysicsVariables
 
-Submodule of PlanetTools that derives new physics variables from existing ones in ModelE /
-ROCKE-3D output: sums, differences, and quotients of variables, and cumulative dust size
-classes. Load it with `using PlanetTools.DerivePhysicsVariablesModelE`.
+Submodule of PlanetTools that derives new physics variables from existing ones: sums,
+differences, and quotients of variables, and cumulative dust size classes. Load it
+with `using PlanetTools.DerivePhysicsVariables`.
 
 All functions use the same data layout: `sdata` is an array whose dimension 1 indexes the
 simulations and dimension 2 the variables named in `vnames`; any further dimensions
@@ -14,11 +16,8 @@ simulations and dimension 2 the variables named in `vnames`; any further dimensi
 holds one dictionary of NetCDF attributes per variable. The functions do not modify their
 inputs; they return new `vnames`, `sdata`, and `attrib` with the derived variables
 appended along dimension 2. Fill values should be converted to `missing` or `NaN` before.
-
-Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
-(jan.p.perlwitz@caprllc.com).
 """
-module DerivePhysicsVariablesModelE
+module DerivePhysicsVariables
 
 export accumulate_variables, subtract_variables, divide_variables
 export accumulate_dust_masses_modele, accumulate_dust_optics_modele
@@ -447,4 +446,4 @@ function _accumulate_sequence(vnames, sdata, attrib, srcnames, newnames, classes
     return _append(vnames, sdata, attrib, names, slices, srcidx, longnames)
 end
 
-end # module DerivePhysicsVariablesModelE
+end # module DerivePhysicsVariables
