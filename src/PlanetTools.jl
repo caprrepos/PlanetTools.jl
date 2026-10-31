@@ -16,7 +16,7 @@ ModelE and ROCKE-3D developed at NASA GISS, others are more generally usable.
 - [`Constructors`](@ref PlanetTools.Constructors): ModelE output file names and discrete
     color palettes.
 - [`DerivePhysicsVariables`](@ref PlanetTools.DerivePhysicsVariables): sums, differences,
-     and quotients of variables, and cumulative dust size classes.
+    and quotients of variables, and cumulative dust size classes.
 - [`PlanetAerosolUtils`](@ref PlanetTools.PlanetAerosolUtils): effective radius of binned
     size distributions and log-log interpolation of optical lookup tables.
 - [`PlanetDustUtils`](@ref PlanetTools.PlanetDustUtils): size distribution of emitted dust

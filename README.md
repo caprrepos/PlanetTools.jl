@@ -147,7 +147,7 @@ save("anomaly.png", fig)
     valid data for a result.
 - **Standard deviations** are sample standard deviations (Bessel's correction generalized
     to weights) unless `corrected=false` is passed.
-- **Particle sizes**: dust size bins as **diameters** (in µm), which
+- **Particle sizes**: dust size bins are given as **diameters** (in µm), as
     `calc_fractional_dust_masses_bft` expects. Effective radii use **radii**: convert bin
     diameters before calling `calc_size_integrated_effective_radius`, e.g.
     `radius = sqrt.(dlow .* dhigh) ./ 2`.
