@@ -7,14 +7,14 @@
     PlanetTools.Constructors
 
 Submodule of PlanetTools with name constructors: [`fnames_modele`](@ref) builds monthly
-output file names for ModelE / ROCKE-3D post-processing. [`compose_palette`](@ref) builds
-discrete color palettes for binned plots. Load it with `using PlanetTools.Constructors`.
-`compose_palette` is defined in a package extension that is loaded once Makie is loaded
-(`using Makie`, `using CairoMakie`, …).
+output file names for ModelE / ROCKE-3D post-processing. Load it with
+`using PlanetTools.Constructors`. `compose_palette`, formerly in this submodule, is now in
+[`PlottingTools`](@ref PlanetTools.PlottingTools); its old name here is deprecated.
 """
 module Constructors
 
 using Dates: Date, Month, month, year
+using ..PlottingTools: PlottingTools
 
 export fnames_modele, compose_palette
 
@@ -49,8 +49,6 @@ Build ModelE / ROCKE-3D monthly output file names `"<MON><YYYY>.<gname><id><ext>
 # Throws
 - `ArgumentError`: if a month is outside `1:12`, a year is negative, the start date is
     after the end date, or `ids` is empty.
-
-See also [`compose_palette`](@ref).
 
 # Examples
 ```jldoctest
@@ -90,69 +88,8 @@ function fnames_modele(
     return [string(m, ".", gname, id, ext) for id in ids, m in cmy]
 end
 
-"""
-    compose_palette(breaks; kwargs...) -> Vector{Makie.RGBAf}
-
-Return one color per interval between consecutive `breaks` (`length(breaks) - 1` colors)
-for discrete contour or binned plots, built from one or two color schemes and an optional
-`midcolor`. Requires Makie to be loaded.
-
-With both palettes, the intervals at or below `demarcation` take `palette1`, the interval
-from the last break `≤ demarcation` to the next break takes `midcolor` (or else
-`palette2`), and the intervals above take `palette2`. If that interval does not exist,
-`midcolor` is not used and a warning is issued. With one palette, `midcolor` takes the
-top interval (`palette1`) or the bottom interval (`palette2`). Each palette is sampled
-evenly from its first to its last color; a single sample is its midpoint.
-
-Use `contourf(x, y, z; levels=breaks, colormap=pal)`. For extension bands pass
-`extendlow=first(pal), extendhigh=last(pal)`; `:auto` makes Makie resample the colormap.
-
-# Arguments
-- `breaks::AbstractVector{<:Real}`: finite, strictly increasing, at least two values.
-
-# Keywords
-- `palette1=nothing`: lower palette, a `ColorScheme` or its name as `Symbol`/`String`.
-- `midcolor=nothing`: any color accepted by `Makie.to_color`, e.g. `:white`.
-- `palette2=nothing`: upper palette, same types as `palette1`.
-- `demarcation::Real=1.0`: value separating the palettes; used only if both are given.
-
-# Returns
-- `Vector{Makie.RGBAf}`: colors from the lowest to the highest interval.
-
-# Throws
-- `ArgumentError`: if `breaks` is invalid, no palette is given, or a scheme name is
-    unknown.
-
-See also [`fnames_modele`](@ref).
-
-# Examples
-```jldoctest
-julia> pal = compose_palette(
-           [-2, -1, -0.5, 0.5, 1, 2];
-           palette1=reverse(colorschemes[:Blues]),
-           midcolor=:white,
-           palette2=:Reds,
-           demarcation=0,
-       );
-
-julia> length(pal), pal[3] == Makie.to_color(:white)
-(5, true)
-```
-"""
-function compose_palette end
-
-# Hint for calls before the Makie extension is loaded.
-function __init__()
-    Base.Experimental.register_error_hint(MethodError) do io, exc, _, _
-        ext = Base.get_extension(parentmodule(@__MODULE__), :PlanetToolsMakieExt)
-        if exc.f === compose_palette && ext === nothing
-            print(
-                io, "\n`compose_palette` is defined in the Makie extension of PlanetTools: "
-            )
-            print(io, "run `using Makie` (or CairoMakie, GLMakie) first.")
-        end
-    end
-    return nothing
-end
+# Moved to PlottingTools after v0.2.1; the old name keeps working and is deprecated.
+# Remove with the next breaking release.
+Base.@deprecate_binding compose_palette PlottingTools.compose_palette
 
 end # module Constructors

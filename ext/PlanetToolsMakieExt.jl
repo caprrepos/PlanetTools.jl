@@ -10,10 +10,9 @@ module PlanetToolsMakieExt
 using ColorSchemes: ColorScheme, colorschemes
 using Contour: Contour
 using Makie: Makie, cgrad, lines!
-using PlanetTools.Constructors: Constructors
 using PlanetTools.PlottingTools: PlottingTools
 
-# --- Constructors.compose_palette ---
+# --- PlottingTools.compose_palette ---
 
 # Return a ColorScheme for a palette given as a ColorScheme, Symbol, or String.
 _scheme(p::ColorScheme) = p
@@ -35,7 +34,7 @@ function _sample(p, n::Integer)
     return Makie.RGBAf[Makie.to_color(get(cs, xi)) for xi in x]
 end
 
-function Constructors.compose_palette(
+function PlottingTools.compose_palette(
     breaks::AbstractVector{<:Real};
     palette1=nothing,
     midcolor=nothing,

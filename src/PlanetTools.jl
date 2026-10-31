@@ -13,8 +13,7 @@ so `using PlanetTools` makes them available; to load only some, use a submodule,
 ModelE and ROCKE-3D developed at NASA GISS, others are more generally usable.
 
 # Submodules
-- [`Constructors`](@ref PlanetTools.Constructors): ModelE output file names and discrete
-    color palettes.
+- [`Constructors`](@ref PlanetTools.Constructors): ModelE output file names.
 - [`DerivePhysicsVariables`](@ref PlanetTools.DerivePhysicsVariables): sums, differences,
     and quotients of variables, and cumulative dust size classes.
 - [`PlanetAerosolUtils`](@ref PlanetTools.PlanetAerosolUtils): effective radius of binned
@@ -23,7 +22,8 @@ ModelE and ROCKE-3D developed at NASA GISS, others are more generally usable.
     from brittle fragmentation theory.
 - [`PlanetStatistics`](@ref PlanetTools.PlanetStatistics): spatial means, time series,
     multi-year statistics, anomalies, trends, and ensemble statistics.
-- [`PlottingTools`](@ref PlanetTools.PlottingTools): isolines of fields with missing data.
+- [`PlottingTools`](@ref PlanetTools.PlottingTools): discrete color palettes and isolines
+    of fields with missing data.
 - [`ReadWritePlanet`](@ref PlanetTools.ReadWritePlanet): NetCDF input and output.
 - [`StatisticUtils`](@ref PlanetTools.StatisticUtils): weighted statistics of gridded
     fields, correlation significance, and latitude weights.
@@ -42,13 +42,13 @@ julia> fnames_modele(2010, 12, 2011, 1, "aij", ["E1"])
 """
 module PlanetTools
 
-# Include submodules in dependency order
+# Include submodules in dependency order (Constructors refers to PlottingTools)
+include("PlottingTools.jl")
 include("Constructors.jl")
 include("DerivePhysicsVariables.jl")
 include("PlanetAerosolUtils.jl")
 include("PlanetDustUtils.jl")
 include("PlanetStatistics.jl")
-include("PlottingTools.jl")
 include("ReadWritePlanet.jl")
 include("StatisticUtils.jl")
 
@@ -69,7 +69,7 @@ using .StatisticUtils
 Base.@deprecate_binding DerivePhysicsVariablesModelE DerivePhysicsVariables false
 
 # Constructors
-export fnames_modele, compose_palette
+export fnames_modele
 # DerivePhysicsVariables
 export accumulate_variables, subtract_variables, divide_variables
 export accumulate_dust_masses_modele, accumulate_dust_optics_modele
@@ -83,7 +83,7 @@ export calc_multiyear_stats!, calc_anomalies!
 export calc_linear_trends!, calc_linear_trends_sig!, generate_significance_mask!
 export calc_ensemble_stats!, calc_ensemble_agreement!
 # PlottingTools
-export finite_contour!
+export compose_palette, finite_contour!
 # ReadWritePlanet
 export readnetcdf, writenetcdf
 # StatisticUtils

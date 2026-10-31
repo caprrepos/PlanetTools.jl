@@ -72,6 +72,21 @@ using Test
         @test getglobal(m, :accumulate_variables) === accumulate_variables
     end
 
+    @testset "Deprecated location of compose_palette" begin
+        # compose_palette moved from Constructors to PlottingTools after v0.2.1.
+        C = PlanetTools.Constructors
+        @test Base.isdeprecated(C, :compose_palette)
+        old = redirect_stderr(devnull) do
+            getglobal(C, :compose_palette)
+        end
+        @test old === PlanetTools.PlottingTools.compose_palette
+        m = Module()
+        redirect_stderr(devnull) do
+            Core.eval(m, :(using PlanetTools.Constructors: compose_palette))
+        end
+        @test getglobal(m, :compose_palette) === compose_palette
+    end
+
     @testset "Exports" begin
         # PlanetTools exports every name exported by its submodules.
         submodules = (
@@ -86,7 +101,7 @@ using Test
         )
         exported = Set(names(PlanetTools))
         for m in submodules, n in names(m)
-            n === nameof(m) && continue
+            (n === nameof(m) || Base.isdeprecated(m, n)) && continue
             @test n in exported
             @test getfield(PlanetTools, n) === getfield(m, n)
         end

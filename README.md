@@ -20,12 +20,12 @@ The functions are organized in submodules:
 
 | Submodule | Purpose | Main functions |
 |:--|:--|:--|
-| `Constructors` | ModelE output file names, discrete color palettes | `fnames_modele`, `compose_palette`¹ |
+| `Constructors` | ModelE output file names | `fnames_modele` |
 | `DerivePhysicsVariables` | Sums, differences, and quotients of variables; cumulative dust size classes | `accumulate_variables`, `subtract_variables`, `divide_variables`, `accumulate_dust_masses_modele`, `accumulate_dust_optics_modele` |
 | `PlanetAerosolUtils` | Effective radius of binned size distributions; log-log interpolation of optical lookup tables | `calc_size_integrated_effective_radius`, `interpolate_extinction_coeff_log` |
 | `PlanetDustUtils` | Size distribution of emitted dust from brittle fragmentation theory (Kok, 2011) | `calc_fractional_dust_masses_bft` |
 | `PlanetStatistics` | Zonal and global means, annual and seasonal time series, multi-year statistics, anomalies, trends with significance, ensemble statistics | `calc_planet_means!`, `calc_annual_mean_ts!`, `calc_seasonal_mean_ts!`, `calc_multiyear_stats!`, `calc_anomalies!`, `calc_linear_trends!`, `calc_linear_trends_sig!`, `generate_significance_mask!`, `calc_ensemble_stats!`, `calc_ensemble_agreement!` |
-| `PlottingTools` | Isolines of fields with missing data, also on GeoMakie axes | `finite_contour!`¹ |
+| `PlottingTools` | Discrete color palettes; isolines of fields with missing data, also on GeoMakie axes | `compose_palette`¹, `finite_contour!`¹ |
 | `ReadWritePlanet` | NetCDF input and output with metadata, missing values, and planetary calendars | `readnetcdf`, `writenetcdf` |
 | `StatisticUtils` | Weighted mean, standard deviation, and pattern correlation of gridded fields; Fisher z-transform and correlation significance; latitude weights | `calc_weighted_mean`, `calc_weighted_std`, `calc_weighted_pattern_corr`, `fisher_z_transform`, `fisher_z_inv`, `calc_correlation_significance`, `calc_latitude_weights` |
 
@@ -106,8 +106,7 @@ calc_fractional_dust_masses_bft(bounds)  # ≈ [0.044, 0.143, 0.388, 0.425]
 ```julia
 using CairoMakie
 using ColorSchemes: colorschemes
-using PlanetTools.Constructors: compose_palette
-using PlanetTools.PlottingTools: finite_contour!
+using PlanetTools.PlottingTools: compose_palette, finite_contour!
 
 lon, lat = -177.5:5.0:177.5, -87.5:5.0:87.5
 anom = [6cosd(φ) * sind(λ) for λ in lon, φ in lat]  # (lon, lat), e.g. an anomaly in K
