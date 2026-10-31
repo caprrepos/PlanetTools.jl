@@ -56,6 +56,22 @@ using Test
         include("statisticutils_tests.jl")
     end
 
+    @testset "Deprecated submodule name" begin
+        # DerivePhysicsVariablesModelE is the old name of DerivePhysicsVariables. Binding
+        # deprecations print to stderr, not to the logger, so the warning is suppressed here.
+        @test Base.isdeprecated(PlanetTools, :DerivePhysicsVariablesModelE)
+        @test !(:DerivePhysicsVariablesModelE in names(PlanetTools))
+        old = redirect_stderr(devnull) do
+            getglobal(PlanetTools, :DerivePhysicsVariablesModelE)
+        end
+        @test old === PlanetTools.DerivePhysicsVariables
+        m = Module()
+        redirect_stderr(devnull) do
+            Core.eval(m, :(using PlanetTools.DerivePhysicsVariablesModelE))
+        end
+        @test getglobal(m, :accumulate_variables) === accumulate_variables
+    end
+
     @testset "Exports" begin
         # PlanetTools exports every name exported by its submodules.
         submodules = (

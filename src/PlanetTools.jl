@@ -64,6 +64,10 @@ using .PlottingTools
 using .ReadWritePlanet
 using .StatisticUtils
 
+# Old name of DerivePhysicsVariables (until v0.2.1), kept for backward compatibility; with
+# `--depwarn=yes` its use issues a deprecation warning. Remove with the next breaking release.
+Base.@deprecate_binding DerivePhysicsVariablesModelE DerivePhysicsVariables false
+
 # Constructors
 export fnames_modele, compose_palette
 # DerivePhysicsVariables
