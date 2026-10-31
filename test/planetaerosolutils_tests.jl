@@ -1,5 +1,7 @@
+## Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+##         (jan.p.perlwitz@caprllc.com)
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-24 to 2026-10-24
+##   used from 2026-10-24 to 2026-10-31
 
 # Tests for `PlanetAerosolUtils`. Imports are in `runtests.jl`.
 

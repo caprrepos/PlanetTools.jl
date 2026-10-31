@@ -1,5 +1,7 @@
+## Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+##         (jan.p.perlwitz@caprllc.com)
 ## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
-##   used from 2026-10-26 to 2026-10-27
+##   used from 2026-10-26 to 2026-10-31
 
 # Benchmark suite of PlanetTools, run with AirspeedVelocity.jl (see benchmark/README.md):
 #     benchpkg PlanetTools --path=. --rev=main,dirty --exeflags="--threads=4"
