@@ -37,14 +37,15 @@ e.g. `?calc_weighted_mean`.
 
 ## Installation
 
-PlanetTools requires Julia 1.10 or later.
+PlanetTools requires Julia 1.10 or later and is registered in the Julia General registry:
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/caprrepos/PlanetTools.jl")
-# or, when it has become part of the General Registry:
 Pkg.add("PlanetTools")
 ```
+
+The development version is installed with
+`Pkg.add(url="https://github.com/caprrepos/PlanetTools.jl")`.
 
 The plotting functions `compose_palette` and `finite_contour!` live in a
 [package extension](https://pkgdocs.julialang.org/v1/creating-packages/#Conditional-loading-of-code-in-packages-(Extensions))
