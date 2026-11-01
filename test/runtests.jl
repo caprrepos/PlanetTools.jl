@@ -70,6 +70,21 @@ using Test
             Core.eval(m, :(using PlanetTools.DerivePhysicsVariablesModelE))
         end
         @test getglobal(m, :accumulate_variables) === accumulate_variables
+        # Import forms that bind the old module name itself, as used by PlanetPostStats.
+        for ex in (
+            :(using PlanetTools.DerivePhysicsVariablesModelE: DerivePhysicsVariablesModelE),
+            :(import PlanetTools.DerivePhysicsVariablesModelE),
+        )
+            m = Module()
+            redirect_stderr(devnull) do
+                Core.eval(m, ex)
+            end
+            old = redirect_stderr(devnull) do
+                getglobal(m, :DerivePhysicsVariablesModelE)
+            end
+            @test old === PlanetTools.DerivePhysicsVariables
+            @test old.MASS_BINS === PlanetTools.DerivePhysicsVariables.MASS_BINS
+        end
     end
 
     @testset "Deprecated location of compose_palette" begin

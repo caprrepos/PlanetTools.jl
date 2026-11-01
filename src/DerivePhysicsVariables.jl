@@ -22,6 +22,12 @@ module DerivePhysicsVariables
 export accumulate_variables, subtract_variables, divide_variables
 export accumulate_dust_masses_modele, accumulate_dust_optics_modele
 
+# The old name of this module (until v0.2.1), also bound inside the module, so that
+# `using PlanetTools.DerivePhysicsVariablesModelE: DerivePhysicsVariablesModelE` keeps
+# working; see the deprecated binding in PlanetTools.jl. Remove with the next breaking
+# release.
+Base.@deprecate_binding DerivePhysicsVariablesModelE DerivePhysicsVariables false
+
 # Dimension of `sdata` that indexes the variables.
 const VDIM = 2
 
