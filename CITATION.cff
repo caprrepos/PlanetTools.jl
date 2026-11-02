@@ -29,12 +29,16 @@ license: MIT
 repository-code: "https://github.com/caprrepos/PlanetTools.jl"
 url: "https://caprrepos.github.io/PlanetTools.jl/stable/"
 keywords:
-  - Julia
-  - climate model
-  - planetary atmospheres
-  - ModelE
-  - ROCKE-3D
   - aerosols
-  - mineral dust
-  - statistics
+  - atmosphere
+  - climate model
+  - earth
+  - exoplanets
+  - Julia
+  - Mars
+  - ModelE
   - NetCDF
+  - post processing
+  - ROCKE-3D
+  - soil dust
+  - statistics
