@@ -122,10 +122,15 @@ using Test
         end
     end
 
-    @testset "CITATION.bib version" begin
-        # The citation must name the current version; update CITATION.bib with each release.
+    @testset "Citation versions" begin
+        # The citation files must name the current version; update CITATION.bib and
+        # CITATION.cff (version and date-released) with each release.
         bib = read(joinpath(pkgdir(PlanetTools), "CITATION.bib"), String)
         m = match(r"version\s*=\s*\{v?([^}]+)\}", bib)
+        @test m !== nothing
+        @test VersionNumber(m.captures[1]) == pkgversion(PlanetTools)
+        cff = read(joinpath(pkgdir(PlanetTools), "CITATION.cff"), String)
+        m = match(r"(?m)^version:\s*\"?v?([^\"\s]+)\"?\s*$", cff)
         @test m !== nothing
         @test VersionNumber(m.captures[1]) == pkgversion(PlanetTools)
     end
