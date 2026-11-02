@@ -8,11 +8,12 @@
 
 The package contains helper functions that can be applied in Julia scripts for data
 processing and plotting of output from simulations with planetary models. It has been
-developed with focus on simulations done with NASA GISS's ModelE and its exoplanet version,
-ROCKE-3D, but its usefulness is not necessarily confined to this. The collection of tools
-includes reading and writing NetCDF output, deriving new variables, area-weighted and temporal
-statistics, trends and their significance, ensemble statistics, aerosol and dust size
-distributions, and plotting of fields with missing data.
+developed with focus on simulations done with NASA GISS's ModelE (Kelley et al., 2020) and
+its exoplanet version, ROCKE-3D (Way et al., 2017; Tsigaridis et al., 2025), but its
+usefulness is not necessarily confined to this. The collection of tools includes reading and
+writing NetCDF output, deriving new variables, area-weighted and temporal statistics, trends
+and their significance, ensemble statistics, aerosol and dust size distributions, and
+plotting of fields with missing data.
 
 ## Features
 
@@ -187,6 +188,16 @@ a small sample, *Metron*, 1(4), 3–32. No DOI; available at
 Hansen, J. E., and L. D. Travis (1974), Light scattering in planetary atmospheres,
 *Space Sci. Rev.*, 16, 527–610, doi:[10.1007/BF00168069](https://doi.org/10.1007/BF00168069).
 
+Kelley, M., G. A. Schmidt, L. S. Nazarenko, S. E. Bauer, R. Ruedy, G. L. Russell, A. S.
+Ackerman, I. Aleinov, M. Bauer, R. Bleck, V. Canuto, G. Cesana, Y. Cheng, T. L. Clune, B. I.
+Cook, C. A. Cruz, A. D. Del Genio, G. S. Elsaesser, G. Faluvegi, N. Y. Kiang, D. Kim, A. A.
+Lacis, A. Leboissetier, A. N. LeGrande, K. K. Lo, J. Marshall, E. E. Matthews, S. McDermid,
+K. Mezuman, R. L. Miller, L. T. Murray, V. Oinas, C. Orbe, C. Pérez García-Pando, J. P.
+Perlwitz, M. J. Puma, D. Rind, A. Romanou, D. T. Shindell, S. Sun, N. Tausnev, K.
+Tsigaridis, G. Tselioudis, E. Weng, J. Wu, and M.-S. Yao (2020), GISS-E2.1: Configurations
+and climatology, *J. Adv. Model. Earth Syst.*, 12(8), e2019MS002025,
+doi:[10.1029/2019MS002025](https://doi.org/10.1029/2019MS002025).
+
 Kok, J. F. (2011), A scaling theory for the size distribution of emitted dust aerosols
 suggests climate models underestimate the size of the global dust cycle, *Proc. Natl. Acad.
 Sci. USA*, 108(3), 1016–1021,
@@ -200,6 +211,19 @@ Santer, B. D., T. M. L. Wigley, J. S. Boyle, D. J. Gaffen, J. J. Hnilo, D. Nychk
 D. E. Parker, and K. E. Taylor (2000), Statistical significance of trends and trend
 differences in layer-average atmospheric temperature time series, *J. Geophys. Res.*,
 105(D6), 7337–7356, doi:[10.1029/1999JD901105](https://doi.org/10.1029/1999JD901105).
+
+Tsigaridis, K., A. S. Ackerman, I. Aleinov, M. A. Chandler, T. L. Clune, C. M. Colose, A. D.
+Del Genio, M. Kelley, N. Y. Kiang, A. Leboissetier, J. P. Perlwitz, R. A. Ruedy, G. L.
+Russell, L. E. Sohl, M. J. Way, and E. T. Wolf (2025), ROCKE-3D 2.0: An updated general
+circulation model for simulating the climates of rocky planets, *Geosci. Model Dev.*,
+18(17), 5825–5871, doi:[10.5194/gmd-18-5825-2025](https://doi.org/10.5194/gmd-18-5825-2025).
+
+Way, M. J., I. Aleinov, D. S. Amundsen, M. A. Chandler, T. L. Clune, A. D. Del Genio, Y.
+Fujii, M. Kelley, N. Y. Kiang, L. Sohl, and K. Tsigaridis (2017), Resolving Orbital and
+Climate Keys of Earth and Extraterrestrial Environments with Dynamics (ROCKE-3D) 1.0: A
+general circulation model for simulating the climates of rocky planets, *Astrophys. J.
+Suppl. Ser.*, 231(1), 12,
+doi:[10.3847/1538-4365/aa7a06](https://doi.org/10.3847/1538-4365/aa7a06).
 
 ## Author
 
