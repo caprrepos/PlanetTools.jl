@@ -175,9 +175,10 @@ redistribute binaries, e.g. in a sysimage or container.
 
 ## Citing
 
-If you use PlanetTools in your work, please cite it with the entry from
-[`CITATION.bib`](CITATION.bib) and for the applied methods the
-original scientific references.
+If you use PlanetTools in your work, please cite it with the metadata in
+[`CITATION.cff`](CITATION.cff) (on GitHub: "Cite this repository" in the right sidebar, in
+APA and BibTeX format) or the entry in [`CITATION.bib`](CITATION.bib), and for the applied
+methods the original scientific references.
 
 ## References
 

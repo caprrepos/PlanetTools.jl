@@ -1,0 +1,40 @@
+## Author: Jan P. Perlwitz, Climate, Aerosol, and Pollution Research, LLC
+##         (jan.p.perlwitz@caprllc.com)
+## AI cowork: Claude Opus 5.5 (model ID claude-opus-5-5, Anthropic),
+##   used from 2026-11-02 to 2026-11-02
+
+# Citation metadata in the Citation File Format (https://citation-file-format.github.io),
+# read by GitHub for "Cite this repository". Keep `version` equal to the version in
+# Project.toml and CITATION.bib (checked in test/runtests.jl), and update `date-released`
+# with each release.
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "PlanetTools.jl"
+abstract: >-
+  Julia package with tools for post-processing and analyzing output of climate model
+  simulations for Earth and other planets, developed with focus on NASA GISS's ModelE and
+  ROCKE-3D: NetCDF input and output, derived variables, area-weighted and temporal
+  statistics, trends and their significance, ensemble statistics, aerosol and dust size
+  distributions, and plotting of fields with missing data.
+authors:
+  - family-names: "Perlwitz"
+    given-names: "Jan P."
+    orcid: "https://orcid.org/0000-0003-3634-8941"
+    email: "jan.p.perlwitz@caprllc.com"
+    affiliation: "Climate, Aerosol, and Pollution Research, LLC"
+version: "0.2.3"
+date-released: "2026-11-02"
+license: MIT
+repository-code: "https://github.com/caprrepos/PlanetTools.jl"
+url: "https://caprrepos.github.io/PlanetTools.jl/stable/"
+keywords:
+  - Julia
+  - climate model
+  - planetary atmospheres
+  - ModelE
+  - ROCKE-3D
+  - aerosols
+  - mineral dust
+  - statistics
+  - NetCDF
