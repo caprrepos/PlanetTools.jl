@@ -180,6 +180,10 @@ original scientific references.
 
 ## References
 
+Fisher, R. A. (1921), On the "probable error" of a coefficient of correlation deduced from
+a small sample, *Metron*, 1(4), 3–32. No DOI; available at
+[hdl.handle.net/2440/15169](https://hdl.handle.net/2440/15169).
+
 Hansen, J. E., and L. D. Travis (1974), Light scattering in planetary atmospheres,
 *Space Sci. Rev.*, 16, 527–610, doi:[10.1007/BF00168069](https://doi.org/10.1007/BF00168069).
 
@@ -187,6 +191,10 @@ Kok, J. F. (2011), A scaling theory for the size distribution of emitted dust ae
 suggests climate models underestimate the size of the global dust cycle, *Proc. Natl. Acad.
 Sci. USA*, 108(3), 1016–1021,
 doi:[10.1073/pnas.1014798108](https://doi.org/10.1073/pnas.1014798108).
+
+Pearson, K. (1896), Mathematical contributions to the theory of evolution.—III. Regression,
+heredity, and panmixia, *Philos. Trans. R. Soc. London, Ser. A*, 187, 253–318,
+doi:[10.1098/rsta.1896.0007](https://doi.org/10.1098/rsta.1896.0007).
 
 Santer, B. D., T. M. L. Wigley, J. S. Boyle, D. J. Gaffen, J. J. Hnilo, D. Nychka,
 D. E. Parker, and K. E. Taylor (2000), Statistical significance of trends and trend
