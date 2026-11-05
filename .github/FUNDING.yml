@@ -1,0 +1,4 @@
+# Native platform keys (use your platform usernames/slugs)
+github: caprrepos
+# Custom links (Up to 4 links. Must use quotes if they contain a colon)
+custom: ["https://www.caprllc.com"]
